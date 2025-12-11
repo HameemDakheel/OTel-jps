@@ -66,13 +66,13 @@ nodes:
     tag: ${settings.tag}
     nodeGroup: cp
     displayName: Manager
-    startServiceOnCreation: false
     env:
       JELASTIC_EXPOSE: false
 
 skipNodeEmails: true
 
 onInstall:
+  - startDocker
   - if ('${settings.mode}' == 'swarm'):
       - addWorkerNodes
       - initSwarm
@@ -83,6 +83,13 @@ onInstall:
       installPortainer
 
 actions:
+  startDocker:
+    cmd[cp]: |-
+      service docker start || systemctl start docker
+      sleep 5
+      docker info
+    user: root
+
   addWorkerNodes:
     if (${settings.worker:0} > 0):
       addNodes:
@@ -92,7 +99,6 @@ actions:
         nodeGroup: worker
         displayName: Worker
         count: ${settings.worker}
-        startServiceOnCreation: false
 
   initSwarm:
     - cmd[${nodes.cp.master.id}]: |-

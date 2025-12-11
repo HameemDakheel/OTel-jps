@@ -1,6 +1,6 @@
 type: install
 id: otel-observability-stack
-version: 1.1
+version: 1.2
 baseUrl: https://raw.githubusercontent.com/HameemDakheel/OTel-jps/main
 
 description:
@@ -56,13 +56,12 @@ settings:
 
     - name: portainer
       type: checkbox
-      caption: Install <a href='https://portainer.io' target='_blank'>Portainer UI</a>
+      caption: Install <a href='https://portainer.io' target='_blank'>Portainer UI</a> with SSL
       value: false
 
-# For single engine mode - just one node
-# For swarm mode - nodes defined in onInstall via addNodes
+# Define both manager and worker nodes upfront (like official Jelastic manifest)
 nodes:
-  - count: 1
+  - count: ${settings.mngr:1}
     cloudlets: 32
     nodeType: dockerengine
     tag: ${settings.tag}
@@ -71,42 +70,31 @@ nodes:
     env:
       JELASTIC_EXPOSE: false
 
+  - count: ${settings.worker:0}
+    cloudlets: 32
+    nodeType: dockerengine
+    tag: ${settings.tag}
+    nodeGroup: worker
+    displayName: Worker
+    env:
+      JELASTIC_EXPOSE: false
+
 skipNodeEmails: true
 
 onInstall:
   - if ('${settings.mode}' == 'swarm'):
-      - addManagerNodes
-      - addWorkerNodes
       - initSwarm
+      - joinManagers
       - joinWorkers
       - deploySwarmStack
   - if ('${settings.mode}' == 'engine'):
       - deployComposeStack
   - setupFirewall
+  - addExtIp
   - if ('${settings.portainer}' == 'true'):
       installPortainer
 
 actions:
-  addManagerNodes:
-    if (${settings.mngr:1} > 1):
-      env.control.AddNode:
-        nodeType: dockerengine
-        tag: ${settings.tag}
-        cloudlets: 32
-        nodeGroup: cp
-        displayName: Manager
-        count: ${{ ${settings.mngr} - 1 }}
-
-  addWorkerNodes:
-    if (${settings.worker:0} > 0):
-      env.control.AddNode:
-        nodeType: dockerengine
-        tag: ${settings.tag}
-        cloudlets: 32
-        nodeGroup: worker
-        displayName: Worker
-        count: ${settings.worker}
-
   initSwarm:
     - cmd[${nodes.cp.master.id}]: |-
         docker swarm init --advertise-addr ${nodes.cp.master.intIP}
@@ -118,11 +106,20 @@ actions:
     - setGlobals:
         worker-token: ${response.out}
 
+  joinManagers:
+    if (nodes.cp.length > 1):
+      forEach(nodes.cp):
+        if (${@i.id} != ${nodes.cp.master.id}):
+          cmd[${@i.id}]: |-
+            docker swarm join --token ${globals.manager-token} ${nodes.cp.master.intIP}:2377
+          user: root
+
   joinWorkers:
-    forEach(nodes.worker):
-      cmd[${@i.id}]: |-
-        docker swarm join --token ${globals.worker-token} ${nodes.cp.master.intIP}:2377
-      user: root
+    if (nodes.worker):
+      forEach(nodes.worker):
+        cmd[${@i.id}]: |-
+          docker swarm join --token ${globals.worker-token} ${nodes.cp.master.intIP}:2377
+        user: root
 
   deploySwarmStack:
     cmd[${nodes.cp.master.id}]: |-
@@ -148,44 +145,77 @@ actions:
       iptables -I INPUT -p tcp --dport 4318 -j ACCEPT
       iptables -I INPUT -p tcp --dport 3100 -j ACCEPT
       iptables -I INPUT -p tcp --dport 3000 -j ACCEPT
+      iptables -I INPUT -p tcp --dport 9443 -j ACCEPT
       iptables-save > /etc/sysconfig/iptables 2>/dev/null || true
     user: root
 
+  addExtIp:
+    script: |
+      var resp = jelastic.env.control.GetEnvInfo('${env.envName}', session);
+      if (resp.result != 0) return resp;
+      var nodes = resp.nodes;
+      for (var i = 0; i < nodes.length; i++) {
+        if (nodes[i].nodeGroup == 'cp' && nodes[i].ismaster) {
+          if (!nodes[i].extIPs || nodes[i].extIPs.length == 0) {
+            return jelastic.env.control.AttachExtIp({
+              envName: '${env.envName}',
+              nodeid: nodes[i].id
+            });
+          }
+        }
+      }
+      return { result: 0 };
+
   installPortainer:
-    cmd[${nodes.cp.master.id}]: |-
-      docker volume create portainer_data
-      if [ "${settings.mode}" == "swarm" ]; then
-        docker service create --name portainer --publish 9443:9443 \
-          --replicas=1 --constraint node.role==manager \
-          --mount type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock \
-          --mount type=volume,src=portainer_data,dst=/data \
-          portainer/portainer-ce:latest
-      else
-        docker run -d -p 9443:9443 --name portainer --restart=always \
-          -v /var/run/docker.sock:/var/run/docker.sock \
-          -v portainer_data:/data \
-          portainer/portainer-ce:latest
-      fi
-    user: root
+    - cmd[${nodes.cp.master.id}]: |-
+        docker volume create portainer_data
+        mkdir -p /opt/portainer/certs
+        # Generate self-signed cert
+        openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+          -keyout /opt/portainer/certs/portainer.key \
+          -out /opt/portainer/certs/portainer.crt \
+          -subj "/CN=${env.domain}"
+      user: root
+    - if ('${settings.mode}' == 'swarm'):
+        cmd[${nodes.cp.master.id}]: |-
+          docker service create --name portainer --publish 9443:9443 \
+            --replicas=1 --constraint node.role==manager \
+            --mount type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock \
+            --mount type=volume,src=portainer_data,dst=/data \
+            --mount type=bind,src=/opt/portainer/certs,dst=/certs \
+            portainer/portainer-ce:latest \
+            --sslcert /certs/portainer.crt --sslkey /certs/portainer.key
+        user: root
+    - if ('${settings.mode}' == 'engine'):
+        cmd[${nodes.cp.master.id}]: |-
+          docker run -d -p 9443:9443 --name portainer --restart=always \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v portainer_data:/data \
+            -v /opt/portainer/certs:/certs \
+            portainer/portainer-ce:latest \
+            --sslcert /certs/portainer.crt --sslkey /certs/portainer.key
+        user: root
 
 success: |
   ## OTel Observability Stack Deployed Successfully!
 
   **Environment:** ${env.displayName}
+  **Domain:** ${env.domain}
 
   ### Access Points
   | Service | URL |
   |---------|-----|
-  | **Grafana** | http://${nodes.cp.master.intIP}:3000 |
-  | **Loki API** | http://${nodes.cp.master.intIP}:3100 |
+  | **Grafana** | http://${env.domain}:3000 |
+  | **Portainer** | https://${env.domain}:9443 |
+  | **Loki API** | http://${env.domain}:3100 |
 
   **Grafana Credentials:** admin / admin
 
-  ### OTLP Endpoints
+  ### OTLP Endpoints (for your applications)
   | Protocol | Endpoint |
   |----------|----------|
-  | **gRPC** | ${nodes.cp.master.intIP}:4317 |
-  | **HTTP** | http://${nodes.cp.master.intIP}:4318/v1/traces |
+  | **gRPC** | ${env.domain}:4317 |
+  | **HTTP** | http://${env.domain}:4318/v1/traces |
 
   ### Verify Stack
   ```bash

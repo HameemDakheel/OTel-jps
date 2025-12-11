@@ -15,7 +15,7 @@ settings:
     - name: repo_url
       caption: Repository URL
       type: string
-      default: https://github.com/YOUR_USERNAME/OTel-jps.git
+      default: https://github.com/HameemDakheel/OTel-jps.git
       required: true
 
 nodes:

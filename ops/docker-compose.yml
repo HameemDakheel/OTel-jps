@@ -21,6 +21,7 @@ services:
     container_name: tempo
     command: ["-config.file=/etc/tempo/tempo.yaml"]
     volumes:
+      - ./tempo-config.yaml:/etc/tempo/tempo.yaml:ro
       - tempo-data:/tmp/tempo
     networks:
       - observability

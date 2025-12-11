@@ -113,7 +113,7 @@ actions:
 
   installGit:
     cmd[${nodes.cp.master.id}]: |-
-      yum install -y git 2>/dev/null || apt-get update && apt-get install -y git
+      yum install -y git
     user: root
 
   deployStack:

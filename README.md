@@ -13,6 +13,7 @@ A **Jelastic JPS manifest** for one-click deployment of a complete OpenTelemetry
 | **Grafana Tempo** | `grafana/tempo:latest` | Distributed tracing backend |
 | **Grafana Loki** | `grafana/loki:latest` | Log aggregation system |
 | **Grafana** | `grafana/grafana:latest` | Visualization and dashboards |
+| **Portainer** *(optional)* | `portainer/portainer-ce:latest` | Docker management UI |
 
 ## 📡 Exposed Endpoints
 
@@ -22,63 +23,80 @@ A **Jelastic JPS manifest** for one-click deployment of a complete OpenTelemetry
 | `4318` | HTTP | OTLP Receiver |
 | `3100` | HTTP | Loki API |
 | `3000` | HTTP | Grafana UI |
+| `9443` | HTTPS | Portainer UI *(if enabled)* |
 
-## 🔧 Installation
+## 🔧 Deployment Modes
 
-### Option 1: Jelastic Marketplace
+### Single Docker Engine
+- Simple, single-node deployment
+- Uses `docker compose`
+- Best for: Development, testing, small workloads
 
-1. Import `manifest.jps` into your Jelastic dashboard
-2. Configure the repository URL (or use default)
-3. Click **Install**
+### Docker Swarm Cluster
+- Multi-node with configurable managers and workers
+- Uses `docker stack deploy`
+- Best for: Production, high availability
 
-### Option 2: Jelastic CLI
+## 📦 Installation
 
-```bash
-jps install manifest.jps --envName otel-stack
-```
+### Option 1: Import via URL (Recommended)
 
-### Option 3: Local Docker Compose
+1. Log in to your Jelastic dashboard
+2. Click **Import** → **URL** tab
+3. Paste:
+   ```
+   https://raw.githubusercontent.com/HameemDakheel/OTel-jps/main/manifest.jps
+   ```
+4. Configure options and click **Install**
+
+### Option 2: Local Docker Compose
 
 ```bash
 cd ops
 docker compose up -d
 ```
 
-## 📦 Repository Structure
+### Option 3: Docker Swarm (Manual)
+
+```bash
+docker swarm init
+cd ops
+docker stack deploy -c docker-stack.yml otel
+```
+
+## 📁 Repository Structure
 
 ```
 OTel-jps/
-├── manifest.jps              # Jelastic installation manifest
-└── ops/
-    ├── docker-compose.yml    # Docker Compose configuration
-    ├── otel-config.yaml      # OpenTelemetry Collector config
-    ├── tempo-config.yaml     # Grafana Tempo config
-    └── loki-config.yaml      # Grafana Loki config
+├── manifest.jps              # Main Jelastic installer
+├── README.md
+├── addons/
+│   └── otel-stack-deploy.jps # Stack deployment addon
+├── ops/
+│   ├── docker-compose.yml    # Single-node compose
+│   ├── docker-stack.yml      # Swarm stack file
+│   ├── otel-config.yaml      # OTel Collector config
+│   ├── tempo-config.yaml     # Tempo config
+│   └── loki-config.yaml      # Loki config
+└── text/
+    └── success.md            # Post-install message
 ```
 
 ## 🔌 Sending Telemetry
 
 Configure your applications to send OTLP data:
 
-**gRPC Endpoint:**
 ```
-http://<YOUR_NODE_IP>:4317
-```
-
-**HTTP Endpoint:**
-```
-http://<YOUR_NODE_IP>:4318/v1/traces
-http://<YOUR_NODE_IP>:4318/v1/logs
-http://<YOUR_NODE_IP>:4318/v1/metrics
+gRPC:  <NODE_IP>:4317
+HTTP:  http://<NODE_IP>:4318/v1/traces
+       http://<NODE_IP>:4318/v1/logs
 ```
 
 ### Example: Go Application
 
 ```go
-import "go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
-
 exporter, _ := otlptracehttp.New(ctx,
-    otlptracehttp.WithEndpoint("YOUR_NODE_IP:4318"),
+    otlptracehttp.WithEndpoint("NODE_IP:4318"),
     otlptracehttp.WithInsecure(),
 )
 ```
@@ -88,6 +106,7 @@ exporter, _ := otlptracehttp.New(ctx,
 | Service | Username | Password |
 |---------|----------|----------|
 | Grafana | `admin` | `admin` |
+| Portainer | *(set on first login)* | |
 
 ## 📄 License
 

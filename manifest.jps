@@ -1,84 +1,148 @@
 type: install
-name: OTel Observability Stack
-description: |
-  OpenTelemetry-based observability stack with:
-  - OpenTelemetry Collector (OTLP gRPC/HTTP)
-  - Grafana Tempo (Distributed Tracing)
-  - Grafana Loki (Log Aggregation)
-  - Grafana (Visualization)
+id: otel-observability-stack
+version: 1.0
+baseUrl: https://raw.githubusercontent.com/HameemDakheel/OTel-jps/main
+
+description:
+  text: |
+    OpenTelemetry-based observability stack with:
+    - OpenTelemetry Collector (OTLP gRPC/HTTP)
+    - Grafana Tempo (Distributed Tracing)
+    - Grafana Loki (Log Aggregation)
+    - Grafana (Visualization)
+  short: OTel Observability Stack with Tempo, Loki, and Grafana
+
+categories:
+  - apps/dev-and-admin-tools
 
 logo: https://opentelemetry.io/img/logos/opentelemetry-logo-nav.png
 homepage: https://opentelemetry.io/
+name: OTel Observability Stack
+
+globals:
+  repo: https://github.com/HameemDakheel/OTel-jps.git
 
 settings:
   fields:
-    - name: repo_url
-      caption: Repository URL
-      type: string
-      default: https://github.com/HameemDakheel/OTel-jps.git
-      required: true
+    - type: nodetags
+      nodeType: dockerengine
+      caption: Docker Version
+      name: tag
+      width: 165
+
+    - name: mode
+      type: radio-fieldset
+      caption: Deployment Mode
+      values:
+        engine: Single Docker Engine
+        swarm: Docker Swarm Cluster
+      default: engine
+      showIf:
+        swarm:
+          - type: spinner
+            name: mngr
+            caption: Manager Nodes
+            min: 1
+            max: 3
+            default: 1
+            increment: 2
+          - type: spinner
+            name: worker
+            caption: Worker Nodes
+            min: 1
+            max: 5
+            default: 2
+        engine: []
+
+    - name: portainer
+      type: checkbox
+      caption: Install <a href='https://portainer.io' target='_blank'>Portainer UI</a>
+      value: false
 
 nodes:
-  - nodeType: dockerengine
-    nodeGroup: cp
+  - count: ${settings.mngr:1}
     cloudlets: 32
-    displayName: OTel Stack
+    nodeType: dockerengine
+    tag: ${settings.tag}
+    nodeGroup: cp
+    displayName: Manager
+    startServiceOnCreation: false
     env:
       JELASTIC_EXPOSE: false
 
+skipNodeEmails: true
+
 onInstall:
+  - if ('${settings.mode}' == 'swarm'):
+      - addWorkerNodes
+      - initSwarm
   - installGit
-  - cloneRepository
+  - deployStack
   - setupFirewall
-  - startStack
+  - if ('${settings.portainer}' == 'true'):
+      installPortainer
 
 actions:
+  addWorkerNodes:
+    if (${settings.worker:0} > 0):
+      addNodes:
+        cloudlets: 32
+        nodeType: dockerengine
+        tag: ${settings.tag}
+        nodeGroup: worker
+        displayName: Worker
+        count: ${settings.worker}
+        startServiceOnCreation: false
+
+  initSwarm:
+    - cmd[${nodes.cp.master.id}]: |-
+        docker swarm init --advertise-addr ${nodes.cp.master.intIP} 2>&1 || echo "Swarm already initialized"
+      user: root
+    - if (nodes.worker):
+        - cmd[${nodes.cp.master.id}]: docker swarm join-token -q worker
+        - forEach(nodes.worker):
+            cmd[${@i.id}]: |-
+              docker swarm join --token ${response.out} ${nodes.cp.master.intIP}:2377 2>&1 || echo "Already in swarm"
+            user: root
+
   installGit:
-    cmd[cp]: |
-      yum install -y git || apt-get update && apt-get install -y git
+    cmd[${nodes.cp.master.id}]: |-
+      yum install -y git 2>/dev/null || apt-get update && apt-get install -y git
     user: root
 
-  cloneRepository:
-    cmd[cp]: |
-      rm -rf /app
-      git clone ${settings.repo_url} /app
-    user: root
+  deployStack:
+    - cmd[${nodes.cp.master.id}]: |-
+        rm -rf /app
+        git clone ${globals.repo} /app
+      user: root
+    - if ('${settings.mode}' == 'swarm'):
+        cmd[${nodes.cp.master.id}]: |-
+          cd /app/ops
+          docker stack deploy -c docker-stack.yml otel
+        user: root
+    - if ('${settings.mode}' == 'engine'):
+        cmd[${nodes.cp.master.id}]: |-
+          cd /app/ops
+          docker compose up -d
+        user: root
 
   setupFirewall:
-    cmd[cp]: |
-      # Open OTLP gRPC port
+    cmd[cp]: |-
+      # Open required ports
       iptables -I INPUT -p tcp --dport 4317 -j ACCEPT
-      # Open OTLP HTTP port
       iptables -I INPUT -p tcp --dport 4318 -j ACCEPT
-      # Open Loki HTTP port
       iptables -I INPUT -p tcp --dport 3100 -j ACCEPT
-      # Open Grafana port
       iptables -I INPUT -p tcp --dport 3000 -j ACCEPT
-      # Save iptables rules
       iptables-save > /etc/sysconfig/iptables 2>/dev/null || iptables-save > /etc/iptables/rules.v4 2>/dev/null || true
     user: root
 
-  startStack:
-    cmd[cp]: |
-      cd /app/ops
-      docker compose up -d
+  installPortainer:
+    cmd[${nodes.cp.master.id}]: |-
+      docker volume create portainer_data
+      docker run -d -p 9443:9443 --name portainer --restart=always \
+        -v /var/run/docker.sock:/var/run/docker.sock \
+        -v portainer_data:/data \
+        portainer/portainer-ce:latest
     user: root
 
-success: |
-  ## OTel Observability Stack Deployed Successfully!
-
-  **Internal IP:** ${nodes.cp.intIP}
-
-  ### Access Points:
-  - **Grafana Dashboard:** http://${nodes.cp.intIP}:3000
-    - Username: `admin`
-    - Password: `admin`
-
-  ### OTLP Endpoints (for your applications):
-  - **gRPC:** ${nodes.cp.intIP}:4317
-  - **HTTP:** ${nodes.cp.intIP}:4318
-
-  ### Loki Endpoint:
-  - **HTTP:** http://${nodes.cp.intIP}:3100
-
-  Configure your applications to send traces and logs to the OTLP endpoints above.
+success: /text/success.md

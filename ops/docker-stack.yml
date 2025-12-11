@@ -1,17 +1,24 @@
 version: "3.8"
 
+# =============================================================================
+# OTel Observability Stack for Docker Swarm
+# Deploy via: docker stack deploy -c otel-stack.yml otel
+# =============================================================================
+
 services:
+  # ---------------------------------------------------------------------------
+  # OpenTelemetry Collector - Receives traces and logs, forwards to backends
+  # ---------------------------------------------------------------------------
   otel-collector:
-    image: otel/opentelemetry-collector-contrib
-    command: ["--config=/etc/otel/otel-config.yaml"]
-    configs:
-      - source: otel-config
-        target: /etc/otel/otel-config.yaml
+    image: otel/opentelemetry-collector-contrib:latest
     ports:
-      - "4317:4317"
-      - "4318:4318"
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
     networks:
       - observability
+    configs:
+      - source: otel-config
+        target: /etc/otelcol-contrib/config.yaml
     deploy:
       mode: replicated
       replicas: 1
@@ -21,70 +28,79 @@ services:
       restart_policy:
         condition: on-failure
         delay: 5s
+        max_attempts: 3
 
+  # ---------------------------------------------------------------------------
+  # Grafana Tempo - Distributed Tracing Backend
+  # ---------------------------------------------------------------------------
   tempo:
     image: grafana/tempo:latest
-    command: ["-config.file=/etc/tempo/tempo.yaml"]
-    configs:
-      - source: tempo-config
-        target: /etc/tempo/tempo.yaml
-    volumes:
-      - tempo-data:/tmp/tempo
+    command: ["-config.file=/etc/tempo.yaml"]
     networks:
       - observability
+    configs:
+      - source: tempo-config
+        target: /etc/tempo.yaml
+    volumes:
+      - tempo-data:/tmp/tempo
     deploy:
       mode: replicated
       replicas: 1
-      placement:
-        constraints:
-          - node.role == worker
       restart_policy:
         condition: on-failure
+        delay: 5s
 
+  # ---------------------------------------------------------------------------
+  # Grafana Loki - Log Aggregation
+  # ---------------------------------------------------------------------------
   loki:
     image: grafana/loki:latest
-    command: ["-config.file=/etc/loki/loki-config.yaml"]
-    configs:
-      - source: loki-config
-        target: /etc/loki/loki-config.yaml
-    volumes:
-      - loki-data:/loki
+    command: ["-config.file=/etc/loki/local-config.yaml"]
     ports:
       - "3100:3100"
     networks:
       - observability
+    configs:
+      - source: loki-config
+        target: /etc/loki/local-config.yaml
+    volumes:
+      - loki-data:/loki
     deploy:
       mode: replicated
       replicas: 1
-      placement:
-        constraints:
-          - node.role == worker
       restart_policy:
         condition: on-failure
+        delay: 5s
 
+  # ---------------------------------------------------------------------------
+  # Grafana - Visualization Dashboard
+  # ---------------------------------------------------------------------------
   grafana:
     image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
-      - GF_AUTH_ANONYMOUS_ENABLED=true
-      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
-      - GF_SERVER_ROOT_URL=%(protocol)s://%(domain)s/
-    volumes:
-      - grafana-data:/var/lib/grafana
-    ports:
-      - "3000:3000"
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+      - GF_USERS_ALLOW_SIGN_UP=false
     networks:
       - observability
+    configs:
+      - source: grafana-datasources
+        target: /etc/grafana/provisioning/datasources/datasources.yaml
+    volumes:
+      - grafana-data:/var/lib/grafana
     deploy:
       mode: replicated
       replicas: 1
-      placement:
-        constraints:
-          - node.role == worker
       restart_policy:
         condition: on-failure
+        delay: 5s
 
+# =============================================================================
+# Docker Configs - Embedded configurations
+# =============================================================================
 configs:
   otel-config:
     file: ./otel-config.yaml
@@ -92,12 +108,20 @@ configs:
     file: ./tempo-config.yaml
   loki-config:
     file: ./loki-config.yaml
+  grafana-datasources:
+    file: ./grafana-datasources.yaml
 
+# =============================================================================
+# Networks
+# =============================================================================
 networks:
   observability:
     driver: overlay
     attachable: true
 
+# =============================================================================
+# Volumes
+# =============================================================================
 volumes:
   tempo-data:
   loki-data:

@@ -23,6 +23,9 @@ nodes:
     nodeGroup: cp
     cloudlets: 32
     displayName: OTel Stack
+    image: jelastic/docker-ce
+    env:
+      JELASTIC_EXPOSE: 3000,3100,4317,4318
 
 onInstall:
   - installGit

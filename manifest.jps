@@ -1,0 +1,82 @@
+type: install
+name: OTel Observability Stack
+description: |
+  OpenTelemetry-based observability stack with:
+  - OpenTelemetry Collector (OTLP gRPC/HTTP)
+  - Grafana Tempo (Distributed Tracing)
+  - Grafana Loki (Log Aggregation)
+  - Grafana (Visualization)
+
+logo: https://opentelemetry.io/img/logos/opentelemetry-logo-nav.png
+homepage: https://opentelemetry.io/
+
+settings:
+  fields:
+    - name: repo_url
+      caption: Repository URL
+      type: string
+      default: https://github.com/YOUR_USERNAME/OTel-jps.git
+      required: true
+
+nodes:
+  - nodeType: docker
+    nodeGroup: cp
+    cloudlets: 32
+    displayName: OTel Stack
+
+onInstall:
+  - installGit
+  - cloneRepository
+  - setupFirewall
+  - startStack
+
+actions:
+  installGit:
+    cmd[cp]: |
+      yum install -y git || apt-get update && apt-get install -y git
+    user: root
+
+  cloneRepository:
+    cmd[cp]: |
+      rm -rf /app
+      git clone ${settings.repo_url} /app
+    user: root
+
+  setupFirewall:
+    cmd[cp]: |
+      # Open OTLP gRPC port
+      iptables -I INPUT -p tcp --dport 4317 -j ACCEPT
+      # Open OTLP HTTP port
+      iptables -I INPUT -p tcp --dport 4318 -j ACCEPT
+      # Open Loki HTTP port
+      iptables -I INPUT -p tcp --dport 3100 -j ACCEPT
+      # Open Grafana port
+      iptables -I INPUT -p tcp --dport 3000 -j ACCEPT
+      # Save iptables rules
+      iptables-save > /etc/sysconfig/iptables 2>/dev/null || iptables-save > /etc/iptables/rules.v4 2>/dev/null || true
+    user: root
+
+  startStack:
+    cmd[cp]: |
+      cd /app/ops
+      docker compose up -d
+    user: root
+
+success: |
+  ## OTel Observability Stack Deployed Successfully!
+
+  **Internal IP:** ${nodes.cp.intIP}
+
+  ### Access Points:
+  - **Grafana Dashboard:** http://${nodes.cp.intIP}:3000
+    - Username: `admin`
+    - Password: `admin`
+
+  ### OTLP Endpoints (for your applications):
+  - **gRPC:** ${nodes.cp.intIP}:4317
+  - **HTTP:** ${nodes.cp.intIP}:4318
+
+  ### Loki Endpoint:
+  - **HTTP:** http://${nodes.cp.intIP}:3100
+
+  Configure your applications to send traces and logs to the OTLP endpoints above.

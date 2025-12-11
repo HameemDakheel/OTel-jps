@@ -4,8 +4,9 @@ services:
   otel-collector:
     image: otel/opentelemetry-collector-contrib
     command: ["--config=/etc/otel/otel-config.yaml"]
-    volumes:
-      - ./otel-config.yaml:/etc/otel/otel-config.yaml:ro
+    configs:
+      - source: otel-config
+        target: /etc/otel/otel-config.yaml
     ports:
       - "4317:4317"
       - "4318:4318"
@@ -20,29 +21,33 @@ services:
       restart_policy:
         condition: on-failure
         delay: 5s
-    depends_on:
-      - tempo
-      - loki
 
   tempo:
     image: grafana/tempo:latest
     command: ["-config.file=/etc/tempo/tempo.yaml"]
+    configs:
+      - source: tempo-config
+        target: /etc/tempo/tempo.yaml
     volumes:
-      - ./tempo-config.yaml:/etc/tempo/tempo.yaml:ro
       - tempo-data:/tmp/tempo
     networks:
       - observability
     deploy:
       mode: replicated
       replicas: 1
+      placement:
+        constraints:
+          - node.role == worker
       restart_policy:
         condition: on-failure
 
   loki:
     image: grafana/loki:latest
     command: ["-config.file=/etc/loki/loki-config.yaml"]
+    configs:
+      - source: loki-config
+        target: /etc/loki/loki-config.yaml
     volumes:
-      - ./loki-config.yaml:/etc/loki/loki-config.yaml:ro
       - loki-data:/loki
     ports:
       - "3100:3100"
@@ -51,6 +56,9 @@ services:
     deploy:
       mode: replicated
       replicas: 1
+      placement:
+        constraints:
+          - node.role == worker
       restart_policy:
         condition: on-failure
 
@@ -61,6 +69,7 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_AUTH_ANONYMOUS_ENABLED=true
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_SERVER_ROOT_URL=%(protocol)s://%(domain)s/
     volumes:
       - grafana-data:/var/lib/grafana
     ports:
@@ -70,11 +79,19 @@ services:
     deploy:
       mode: replicated
       replicas: 1
+      placement:
+        constraints:
+          - node.role == worker
       restart_policy:
         condition: on-failure
-    depends_on:
-      - tempo
-      - loki
+
+configs:
+  otel-config:
+    file: ./otel-config.yaml
+  tempo-config:
+    file: ./tempo-config.yaml
+  loki-config:
+    file: ./loki-config.yaml
 
 networks:
   observability:

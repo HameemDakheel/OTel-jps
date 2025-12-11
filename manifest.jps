@@ -1,6 +1,6 @@
 type: install
 id: otel-observability-stack
-version: 1.0
+version: 1.1
 baseUrl: https://raw.githubusercontent.com/HameemDakheel/OTel-jps/main
 
 description:
@@ -59,8 +59,10 @@ settings:
       caption: Install <a href='https://portainer.io' target='_blank'>Portainer UI</a>
       value: false
 
+# For single engine mode - just one node
+# For swarm mode - nodes defined in onInstall via addNodes
 nodes:
-  - count: ${settings.mngr:1}
+  - count: 1
     cloudlets: 32
     nodeType: dockerengine
     tag: ${settings.tag}
@@ -72,83 +74,121 @@ nodes:
 skipNodeEmails: true
 
 onInstall:
-  - startDocker
   - if ('${settings.mode}' == 'swarm'):
+      - addManagerNodes
       - addWorkerNodes
       - initSwarm
-  - installGit
-  - deployStack
+      - joinWorkers
+      - deploySwarmStack
+  - if ('${settings.mode}' == 'engine'):
+      - deployComposeStack
   - setupFirewall
   - if ('${settings.portainer}' == 'true'):
       installPortainer
 
 actions:
-  startDocker:
-    cmd[cp]: |-
-      service docker start || systemctl start docker
-      sleep 5
-      docker info
-    user: root
+  addManagerNodes:
+    if (${settings.mngr:1} > 1):
+      env.control.AddNode:
+        nodeType: dockerengine
+        tag: ${settings.tag}
+        cloudlets: 32
+        nodeGroup: cp
+        displayName: Manager
+        count: ${{ ${settings.mngr} - 1 }}
 
   addWorkerNodes:
     if (${settings.worker:0} > 0):
-      addNodes:
-        cloudlets: 32
+      env.control.AddNode:
         nodeType: dockerengine
         tag: ${settings.tag}
+        cloudlets: 32
         nodeGroup: worker
         displayName: Worker
         count: ${settings.worker}
 
   initSwarm:
     - cmd[${nodes.cp.master.id}]: |-
-        docker swarm init --advertise-addr ${nodes.cp.master.intIP} 2>&1 || echo "Swarm already initialized"
+        docker swarm init --advertise-addr ${nodes.cp.master.intIP}
       user: root
-    - if (nodes.worker):
-        - cmd[${nodes.cp.master.id}]: docker swarm join-token -q worker
-        - forEach(nodes.worker):
-            cmd[${@i.id}]: |-
-              docker swarm join --token ${response.out} ${nodes.cp.master.intIP}:2377 2>&1 || echo "Already in swarm"
-            user: root
+    - cmd[${nodes.cp.master.id}]: docker swarm join-token -q manager
+    - setGlobals:
+        manager-token: ${response.out}
+    - cmd[${nodes.cp.master.id}]: docker swarm join-token -q worker
+    - setGlobals:
+        worker-token: ${response.out}
 
-  installGit:
+  joinWorkers:
+    forEach(nodes.worker):
+      cmd[${@i.id}]: |-
+        docker swarm join --token ${globals.worker-token} ${nodes.cp.master.intIP}:2377
+      user: root
+
+  deploySwarmStack:
     cmd[${nodes.cp.master.id}]: |-
       yum install -y git
+      rm -rf /app
+      git clone ${globals.repo} /app
+      cd /app/ops
+      docker stack deploy -c docker-stack.yml otel
     user: root
 
-  deployStack:
-    - cmd[${nodes.cp.master.id}]: |-
-        rm -rf /app
-        git clone ${globals.repo} /app
-      user: root
-    - if ('${settings.mode}' == 'swarm'):
-        cmd[${nodes.cp.master.id}]: |-
-          cd /app/ops
-          docker stack deploy -c docker-stack.yml otel
-        user: root
-    - if ('${settings.mode}' == 'engine'):
-        cmd[${nodes.cp.master.id}]: |-
-          cd /app/ops
-          docker compose up -d
-        user: root
+  deployComposeStack:
+    cmd[${nodes.cp.master.id}]: |-
+      yum install -y git
+      rm -rf /app
+      git clone ${globals.repo} /app
+      cd /app/ops
+      docker compose up -d
+    user: root
 
   setupFirewall:
     cmd[cp]: |-
-      # Open required ports
       iptables -I INPUT -p tcp --dport 4317 -j ACCEPT
       iptables -I INPUT -p tcp --dport 4318 -j ACCEPT
       iptables -I INPUT -p tcp --dport 3100 -j ACCEPT
       iptables -I INPUT -p tcp --dport 3000 -j ACCEPT
-      iptables-save > /etc/sysconfig/iptables 2>/dev/null || iptables-save > /etc/iptables/rules.v4 2>/dev/null || true
+      iptables-save > /etc/sysconfig/iptables 2>/dev/null || true
     user: root
 
   installPortainer:
     cmd[${nodes.cp.master.id}]: |-
       docker volume create portainer_data
-      docker run -d -p 9443:9443 --name portainer --restart=always \
-        -v /var/run/docker.sock:/var/run/docker.sock \
-        -v portainer_data:/data \
-        portainer/portainer-ce:latest
+      if [ "${settings.mode}" == "swarm" ]; then
+        docker service create --name portainer --publish 9443:9443 \
+          --replicas=1 --constraint node.role==manager \
+          --mount type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock \
+          --mount type=volume,src=portainer_data,dst=/data \
+          portainer/portainer-ce:latest
+      else
+        docker run -d -p 9443:9443 --name portainer --restart=always \
+          -v /var/run/docker.sock:/var/run/docker.sock \
+          -v portainer_data:/data \
+          portainer/portainer-ce:latest
+      fi
     user: root
 
-success: /text/success.md
+success: |
+  ## OTel Observability Stack Deployed Successfully!
+
+  **Environment:** ${env.displayName}
+
+  ### Access Points
+  | Service | URL |
+  |---------|-----|
+  | **Grafana** | http://${nodes.cp.master.intIP}:3000 |
+  | **Loki API** | http://${nodes.cp.master.intIP}:3100 |
+
+  **Grafana Credentials:** admin / admin
+
+  ### OTLP Endpoints
+  | Protocol | Endpoint |
+  |----------|----------|
+  | **gRPC** | ${nodes.cp.master.intIP}:4317 |
+  | **HTTP** | http://${nodes.cp.master.intIP}:4318/v1/traces |
+
+  ### Verify Stack
+  ```bash
+  docker stack services otel   # Swarm mode
+  docker compose ps            # Engine mode
+  ```

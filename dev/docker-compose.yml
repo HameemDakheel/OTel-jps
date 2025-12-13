@@ -1,0 +1,290 @@
+version: "3.8"
+
+# =============================================================================
+# OTel Demo Stack - DEVELOPMENT
+# Based on: OpenTelemetry Demo (pre-built images, no build steps)
+# Network: Attach to external 'observability-net' overlay network
+# Deploy: docker stack deploy -c docker-compose.yml otel-dev
+#
+# Ports:
+#   - Grafana: 3001 (avoids conflict with prod:3000)
+#   - Web Store: 8080
+#   - Jaeger UI: 16686
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # Frontend - Web Store UI
+  # ---------------------------------------------------------------------------
+  frontend:
+    image: ghcr.io/open-telemetry/demo:latest-frontend
+    ports:
+      - "8080:8080"
+    environment:
+      - FRONTEND_ADDR=:8080
+      - AD_SERVICE_ADDR=adservice:9555
+      - CART_SERVICE_ADDR=cartservice:7070
+      - CHECKOUT_SERVICE_ADDR=checkoutservice:5050
+      - CURRENCY_SERVICE_ADDR=currencyservice:7001
+      - PRODUCT_CATALOG_SERVICE_ADDR=productcatalogservice:3550
+      - RECOMMENDATION_SERVICE_ADDR=recommendationservice:9001
+      - SHIPPING_SERVICE_ADDR=shippingservice:50051
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_SERVICE_NAME=frontend
+      - ENV_PLATFORM=local
+    networks:
+      - observability-net
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+
+  # ---------------------------------------------------------------------------
+  # Ad Service
+  # ---------------------------------------------------------------------------
+  adservice:
+    image: ghcr.io/open-telemetry/demo:latest-adservice
+    environment:
+      - AD_SERVICE_PORT=9555
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_SERVICE_NAME=adservice
+    networks:
+      - observability-net
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+
+  # ---------------------------------------------------------------------------
+  # Cart Service
+  # ---------------------------------------------------------------------------
+  cartservice:
+    image: ghcr.io/open-telemetry/demo:latest-cartservice
+    environment:
+      - CART_SERVICE_PORT=7070
+      - REDIS_ADDR=redis-cart:6379
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_SERVICE_NAME=cartservice
+    networks:
+      - observability-net
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+
+  # ---------------------------------------------------------------------------
+  # Checkout Service
+  # ---------------------------------------------------------------------------
+  checkoutservice:
+    image: ghcr.io/open-telemetry/demo:latest-checkoutservice
+    environment:
+      - CHECKOUT_SERVICE_PORT=5050
+      - CART_SERVICE_ADDR=cartservice:7070
+      - CURRENCY_SERVICE_ADDR=currencyservice:7001
+      - EMAIL_SERVICE_ADDR=emailservice:8080
+      - PAYMENT_SERVICE_ADDR=paymentservice:50051
+      - PRODUCT_CATALOG_SERVICE_ADDR=productcatalogservice:3550
+      - SHIPPING_SERVICE_ADDR=shippingservice:50051
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_SERVICE_NAME=checkoutservice
+    networks:
+      - observability-net
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+
+  # ---------------------------------------------------------------------------
+  # Currency Service
+  # ---------------------------------------------------------------------------
+  currencyservice:
+    image: ghcr.io/open-telemetry/demo:latest-currencyservice
+    environment:
+      - CURRENCY_SERVICE_PORT=7001
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_SERVICE_NAME=currencyservice
+    networks:
+      - observability-net
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+
+  # ---------------------------------------------------------------------------
+  # Email Service
+  # ---------------------------------------------------------------------------
+  emailservice:
+    image: ghcr.io/open-telemetry/demo:latest-emailservice
+    environment:
+      - EMAIL_SERVICE_PORT=8080
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_SERVICE_NAME=emailservice
+    networks:
+      - observability-net
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+
+  # ---------------------------------------------------------------------------
+  # Payment Service
+  # ---------------------------------------------------------------------------
+  paymentservice:
+    image: ghcr.io/open-telemetry/demo:latest-paymentservice
+    environment:
+      - PAYMENT_SERVICE_PORT=50051
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_SERVICE_NAME=paymentservice
+    networks:
+      - observability-net
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+
+  # ---------------------------------------------------------------------------
+  # Product Catalog Service
+  # ---------------------------------------------------------------------------
+  productcatalogservice:
+    image: ghcr.io/open-telemetry/demo:latest-productcatalogservice
+    environment:
+      - PRODUCT_CATALOG_SERVICE_PORT=3550
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_SERVICE_NAME=productcatalogservice
+    networks:
+      - observability-net
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+
+  # ---------------------------------------------------------------------------
+  # Recommendation Service
+  # ---------------------------------------------------------------------------
+  recommendationservice:
+    image: ghcr.io/open-telemetry/demo:latest-recommendationservice
+    environment:
+      - RECOMMENDATION_SERVICE_PORT=9001
+      - PRODUCT_CATALOG_SERVICE_ADDR=productcatalogservice:3550
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_SERVICE_NAME=recommendationservice
+    networks:
+      - observability-net
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+
+  # ---------------------------------------------------------------------------
+  # Shipping Service
+  # ---------------------------------------------------------------------------
+  shippingservice:
+    image: ghcr.io/open-telemetry/demo:latest-shippingservice
+    environment:
+      - SHIPPING_SERVICE_PORT=50051
+      - QUOTE_SERVICE_ADDR=quoteservice:8080
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_SERVICE_NAME=shippingservice
+    networks:
+      - observability-net
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+
+  # ---------------------------------------------------------------------------
+  # Quote Service
+  # ---------------------------------------------------------------------------
+  quoteservice:
+    image: ghcr.io/open-telemetry/demo:latest-quoteservice
+    environment:
+      - QUOTE_SERVICE_PORT=8080
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_SERVICE_NAME=quoteservice
+    networks:
+      - observability-net
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+
+  # ---------------------------------------------------------------------------
+  # Redis (Cart Storage)
+  # ---------------------------------------------------------------------------
+  redis-cart:
+    image: redis:7-alpine
+    networks:
+      - observability-net
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+
+  # ---------------------------------------------------------------------------
+  # OpenTelemetry Collector (Dev)
+  # ---------------------------------------------------------------------------
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    configs:
+      - source: otel-dev-config
+        target: /etc/otelcol-contrib/config.yaml
+    networks:
+      - observability-net
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+
+  # ---------------------------------------------------------------------------
+  # Jaeger (Tracing UI for Dev)
+  # ---------------------------------------------------------------------------
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    ports:
+      - "16686:16686"   # Jaeger UI
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    networks:
+      - observability-net
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+
+  # ---------------------------------------------------------------------------
+  # Grafana (Dev - Port 3001)
+  # ---------------------------------------------------------------------------
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3001:3000"     # Mapped to 3001 to avoid conflict with prod
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+    configs:
+      - source: grafana-dev-datasources
+        target: /etc/grafana/provisioning/datasources/datasources.yaml
+    networks:
+      - observability-net
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+
+# =============================================================================
+# Docker Swarm Configs
+# =============================================================================
+configs:
+  otel-dev-config:
+    file: ./otel-config.yaml
+  grafana-dev-datasources:
+    file: ./grafana-datasources.yaml
+
+# =============================================================================
+# External Network (must be created before deployment)
+# =============================================================================
+networks:
+  observability-net:
+    external: true

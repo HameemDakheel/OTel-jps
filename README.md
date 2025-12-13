@@ -1,112 +1,164 @@
 # OTel-jps
 
-[![Jelastic](https://img.shields.io/badge/Jelastic-JPS-blue)](https://jelastic.com/)
-[![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-Collector-orange)](https://opentelemetry.io/)
+[![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-Observability-orange)](https://opentelemetry.io/)
+[![Docker Swarm](https://img.shields.io/badge/Docker-Swarm-blue)](https://docs.docker.com/engine/swarm/)
 
-A **Jelastic JPS manifest** for one-click deployment of a complete OpenTelemetry-based observability stack.
+OpenTelemetry Observability Stack for Docker Swarm with **Production** and **Development** environments.
 
-## 🚀 Stack Components
+## 🏗️ Architecture
 
-| Service | Image | Purpose |
-|---------|-------|---------|
-| **OTel Collector** | `otel/opentelemetry-collector-contrib` | Receives, processes, and exports telemetry data |
-| **Grafana Tempo** | `grafana/tempo:latest` | Distributed tracing backend |
-| **Grafana Loki** | `grafana/loki:latest` | Log aggregation system |
-| **Grafana** | `grafana/grafana:latest` | Visualization and dashboards |
-| **Portainer** *(optional)* | `portainer/portainer-ce:latest` | Docker management UI |
-
-## 📡 Exposed Endpoints
-
-| Port | Protocol | Service |
-|------|----------|---------|
-| `4317` | gRPC | OTLP Receiver |
-| `4318` | HTTP | OTLP Receiver |
-| `3100` | HTTP | Loki API |
-| `3000` | HTTP | Grafana UI |
-| `9443` | HTTPS | Portainer UI *(if enabled)* |
-
-## 🔧 Deployment Modes
-
-### Single Docker Engine
-- Simple, single-node deployment
-- Uses `docker compose`
-- Best for: Development, testing, small workloads
-
-### Docker Swarm Cluster
-- Multi-node with configurable managers and workers
-- Uses `docker stack deploy`
-- Best for: Production, high availability
-
-## 📦 Installation
-
-### Option 1: Import via URL (Recommended)
-
-1. Log in to your Jelastic dashboard
-2. Click **Import** → **URL** tab
-3. Paste:
-   ```
-   https://raw.githubusercontent.com/HameemDakheel/OTel-jps/main/manifest.jps
-   ```
-4. Configure options and click **Install**
-
-### Option 2: Local Docker Compose
-
-```bash
-cd ops
-docker compose up -d
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    observability-net (overlay)                  │
+├─────────────────────────────────┬───────────────────────────────┤
+│         PROD STACK              │          DEV STACK            │
+│  ┌─────────────────────────┐    │    ┌─────────────────────┐    │
+│  │ otel-collector (:4317)  │    │    │ OTel Demo Services  │    │
+│  │ tempo                   │◄───┼────│ (frontend, cart,    │    │
+│  │ loki (:3100)            │    │    │  checkout, etc.)    │    │
+│  │ grafana (:3000)         │    │    │ jaeger (:16686)     │    │
+│  └─────────────────────────┘    │    │ grafana (:3001)     │    │
+│                                 │    └─────────────────────┘    │
+└─────────────────────────────────┴───────────────────────────────┘
 ```
 
-### Option 3: Docker Swarm (Manual)
+## 📋 Prerequisites
+
+- Docker Swarm cluster (initialized)
+- Git installed on manager node
+
+## 🚀 Quick Start
+
+### 1. Clone Repository (on Swarm Manager)
 
 ```bash
-docker swarm init
-cd ops
-docker stack deploy -c docker-stack.yml otel
+git clone https://github.com/HameemDakheel/OTel-jps.git /app
+cd /app
 ```
+
+### 2. Create Overlay Network
+
+```bash
+docker network create -d overlay --attachable observability-net
+```
+
+### 3. Deploy Production Stack
+
+```bash
+cd /app/prod
+docker stack deploy -c docker-compose.yml otel-prod
+```
+
+### 4. Deploy Development Stack (Optional)
+
+```bash
+cd /app/dev
+docker stack deploy -c docker-compose.yml otel-dev
+```
+
+## 📡 Access Points
+
+### Production Stack
+
+| Service | URL | Credentials |
+|---------|-----|-------------|
+| **Grafana** | `http://<DOMAIN>:3000` | admin / admin |
+| **Loki API** | `http://<DOMAIN>:3100` | - |
+| **OTLP gRPC** | `<DOMAIN>:4317` | - |
+| **OTLP HTTP** | `http://<DOMAIN>:4318` | - |
+
+### Development Stack
+
+| Service | URL | Credentials |
+|---------|-----|-------------|
+| **Web Store** | `http://<DOMAIN>:8080` | - |
+| **Grafana** | `http://<DOMAIN>:3001` | admin / admin |
+| **Jaeger UI** | `http://<DOMAIN>:16686` | - |
 
 ## 📁 Repository Structure
 
 ```
 OTel-jps/
-├── manifest.jps              # Main Jelastic installer
-├── README.md
-├── addons/
-│   └── otel-stack-deploy.jps # Stack deployment addon
-├── ops/
-│   ├── docker-compose.yml    # Single-node compose
-│   ├── docker-stack.yml      # Swarm stack file
-│   ├── otel-config.yaml      # OTel Collector config
-│   ├── tempo-config.yaml     # Tempo config
-│   └── loki-config.yaml      # Loki config
-└── text/
-    └── success.md            # Post-install message
+├── prod/                         # Production Stack
+│   ├── docker-compose.yml        # Swarm stack definition
+│   ├── otel-config.yaml          # OTel Collector config
+│   ├── tempo-config.yaml         # Tempo config
+│   ├── loki-config.yaml          # Loki config
+│   └── grafana-datasources.yaml  # Auto-provisioned datasources
+│
+├── dev/                          # Development Stack
+│   ├── docker-compose.yml        # OTel Demo services
+│   ├── otel-config.yaml          # Dev collector config
+│   └── grafana-datasources.yaml  # Dev datasources (Jaeger)
+│
+└── README.md
+```
+
+## 🔧 Stack Management
+
+### View Services
+
+```bash
+# Production
+docker stack services otel-prod
+
+# Development
+docker stack services otel-dev
+```
+
+### View Logs
+
+```bash
+docker service logs otel-prod_otel-collector
+docker service logs otel-dev_frontend
+```
+
+### Remove Stacks
+
+```bash
+docker stack rm otel-prod
+docker stack rm otel-dev
 ```
 
 ## 🔌 Sending Telemetry
 
-Configure your applications to send OTLP data:
+Configure your applications to send OTLP data to the collector:
 
-```
-gRPC:  <NODE_IP>:4317
-HTTP:  http://<NODE_IP>:4318/v1/traces
-       http://<NODE_IP>:4318/v1/logs
+### Environment Variables
+
+```bash
+OTEL_EXPORTER_OTLP_ENDPOINT=http://<DOMAIN>:4317
+OTEL_SERVICE_NAME=my-service
 ```
 
 ### Example: Go Application
 
 ```go
-exporter, _ := otlptracehttp.New(ctx,
-    otlptracehttp.WithEndpoint("NODE_IP:4318"),
-    otlptracehttp.WithInsecure(),
+exporter, _ := otlptracegrpc.New(ctx,
+    otlptracegrpc.WithEndpoint("DOMAIN:4317"),
+    otlptracegrpc.WithInsecure(),
 )
 ```
 
-## 🔐 Default Credentials
+### Example: Python Application
 
-| Service | Username | Password |
-|---------|----------|----------|
-| Grafana | `admin` | `admin` |
-| Portainer | *(set on first login)* | |
+```python
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+
+exporter = OTLPSpanExporter(endpoint="DOMAIN:4317", insecure=True)
+```
+
+## 📊 Grafana Dashboards
+
+Both Grafana instances are pre-configured with datasources:
+
+### Production Grafana (:3000)
+- **Tempo** - Distributed tracing
+- **Loki** - Log aggregation (with trace correlation)
+
+### Dev Grafana (:3001)
+- **Jaeger** - Tracing for demo services
+- Links to prod Tempo/Loki if available
 
 ## 📄 License
 

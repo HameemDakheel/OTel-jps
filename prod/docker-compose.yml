@@ -1,34 +1,34 @@
 version: "3.8"
 
 # =============================================================================
-# OTel Observability Stack for Docker Swarm
-# Deploy via: docker stack deploy -c otel-stack.yml otel
+# OTel Observability Stack - PRODUCTION
+# Network: Attach to external 'observability-net' overlay network
+# Deploy: docker stack deploy -c docker-compose.yml otel-prod
 # =============================================================================
 
 services:
   # ---------------------------------------------------------------------------
-  # OpenTelemetry Collector - Receives traces and logs, forwards to backends
+  # OpenTelemetry Collector
   # ---------------------------------------------------------------------------
   otel-collector:
     image: otel/opentelemetry-collector-contrib:latest
     ports:
       - "4317:4317"   # OTLP gRPC
       - "4318:4318"   # OTLP HTTP
-    networks:
-      - observability
     configs:
       - source: otel-config
         target: /etc/otelcol-contrib/config.yaml
+    networks:
+      - observability-net
     deploy:
-      mode: replicated
       replicas: 1
-      placement:
-        constraints:
-          - node.role == manager
       restart_policy:
         condition: on-failure
         delay: 5s
-        max_attempts: 3
+        max_attempts: 5
+      placement:
+        constraints:
+          - node.role == manager
 
   # ---------------------------------------------------------------------------
   # Grafana Tempo - Distributed Tracing Backend
@@ -36,19 +36,19 @@ services:
   tempo:
     image: grafana/tempo:latest
     command: ["-config.file=/etc/tempo.yaml"]
-    networks:
-      - observability
     configs:
       - source: tempo-config
         target: /etc/tempo.yaml
     volumes:
       - tempo-data:/tmp/tempo
+    networks:
+      - observability-net
     deploy:
-      mode: replicated
       replicas: 1
       restart_policy:
         condition: on-failure
         delay: 5s
+        max_attempts: 5
 
   # ---------------------------------------------------------------------------
   # Grafana Loki - Log Aggregation
@@ -57,20 +57,20 @@ services:
     image: grafana/loki:latest
     command: ["-config.file=/etc/loki/local-config.yaml"]
     ports:
-      - "3100:3100"
-    networks:
-      - observability
+      - "3100:3100"   # Loki HTTP API (for debugging)
     configs:
       - source: loki-config
         target: /etc/loki/local-config.yaml
     volumes:
       - loki-data:/loki
+    networks:
+      - observability-net
     deploy:
-      mode: replicated
       replicas: 1
       restart_policy:
         condition: on-failure
         delay: 5s
+        max_attempts: 5
 
   # ---------------------------------------------------------------------------
   # Grafana - Visualization Dashboard
@@ -84,22 +84,22 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_AUTH_ANONYMOUS_ENABLED=false
       - GF_USERS_ALLOW_SIGN_UP=false
-    networks:
-      - observability
     configs:
       - source: grafana-datasources
         target: /etc/grafana/provisioning/datasources/datasources.yaml
     volumes:
       - grafana-data:/var/lib/grafana
+    networks:
+      - observability-net
     deploy:
-      mode: replicated
       replicas: 1
       restart_policy:
         condition: on-failure
         delay: 5s
+        max_attempts: 5
 
 # =============================================================================
-# Docker Configs - Embedded configurations
+# Docker Swarm Configs
 # =============================================================================
 configs:
   otel-config:
@@ -112,12 +112,11 @@ configs:
     file: ./grafana-datasources.yaml
 
 # =============================================================================
-# Networks
+# External Network (must be created before deployment)
 # =============================================================================
 networks:
-  observability:
-    driver: overlay
-    attachable: true
+  observability-net:
+    external: true
 
 # =============================================================================
 # Volumes

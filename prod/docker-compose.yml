@@ -1,19 +1,43 @@
 version: "3.8"
 
 # =============================================================================
-# OTel Observability Stack - PRODUCTION
-# Network: Attach to external 'observability-net' overlay network
+# OTel Observability Stack - PRODUCTION (with HTTPS via Nginx)
+# Uses Jelastic's existing Let's Encrypt certificates
 # Deploy: docker stack deploy -c docker-compose.yml otel-prod
 # =============================================================================
 
 services:
+  # ---------------------------------------------------------------------------
+  # Nginx - HTTPS Reverse Proxy (uses Jelastic SSL certs)
+  # ---------------------------------------------------------------------------
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "443:443"
+      - "80:80"
+    configs:
+      - source: nginx-config
+        target: /etc/nginx/nginx.conf
+    volumes:
+      - /var/lib/jelastic/keys:/etc/ssl/jelastic:ro
+    networks:
+      - observability-net
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+
   # ---------------------------------------------------------------------------
   # OpenTelemetry Collector
   # ---------------------------------------------------------------------------
   otel-collector:
     image: otel/opentelemetry-collector-contrib:latest
     ports:
-      - "4317:4317"   # OTLP gRPC
+      - "4317:4317"   # OTLP gRPC (direct, no proxy)
       - "4318:4318"   # OTLP HTTP
     configs:
       - source: otel-config
@@ -57,8 +81,6 @@ services:
   loki:
     image: grafana/loki:latest
     command: ["-config.file=/etc/loki/local-config.yaml"]
-    ports:
-      - "3100:3100"   # Loki HTTP API (for debugging)
     configs:
       - source: loki-config
         target: /etc/loki/local-config.yaml
@@ -78,13 +100,13 @@ services:
   # ---------------------------------------------------------------------------
   grafana:
     image: grafana/grafana:latest
-    ports:
-      - "3000:3000"
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_AUTH_ANONYMOUS_ENABLED=false
       - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=https://env-2333722.fin.libyanspider.cloud/grafana
+      - GF_SERVER_SERVE_FROM_SUB_PATH=true
     configs:
       - source: grafana-datasources
         target: /etc/grafana/provisioning/datasources/datasources.yaml
@@ -103,6 +125,8 @@ services:
 # Docker Swarm Configs
 # =============================================================================
 configs:
+  nginx-config:
+    file: ./nginx.conf
   otel-config:
     file: ./otel-config.yaml
   tempo-config:
@@ -113,7 +137,7 @@ configs:
     file: ./grafana-datasources.yaml
 
 # =============================================================================
-# External Network (must be created before deployment)
+# External Network
 # =============================================================================
 networks:
   observability-net:

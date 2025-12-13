@@ -35,6 +35,7 @@ services:
   # ---------------------------------------------------------------------------
   tempo:
     image: grafana/tempo:latest
+    user: root
     command: ["-config.file=/etc/tempo.yaml"]
     configs:
       - source: tempo-config

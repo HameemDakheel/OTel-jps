@@ -13,10 +13,6 @@ exporters:
     tls:
       insecure: true
 
-  # Also export to prod Loki if available
-  loki:
-    endpoint: http://loki:3100/loki/api/v1/push
-
   # Debug exporter
   debug:
     verbosity: detailed

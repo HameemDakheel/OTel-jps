@@ -2,7 +2,7 @@ stream_over_http_enabled: true
 
 server:
   http_listen_port: 3200
-  log_level: warn
+  log_level: info
 
 distributor:
   receivers:
@@ -16,7 +16,6 @@ distributor:
 ingester:
   max_block_duration: 5m
   trace_idle_period: 10s
-  max_block_bytes: 1_000_000
 
 compactor:
   compaction:
@@ -29,16 +28,3 @@ storage:
       path: /tmp/tempo/wal
     local:
       path: /tmp/tempo/blocks
-
-metrics_generator:
-  registry:
-    external_labels:
-      source: tempo
-      environment: production
-  storage:
-    path: /tmp/tempo/generator/wal
-
-overrides:
-  defaults:
-    metrics_generator:
-      processors: [service-graphs, span-metrics]

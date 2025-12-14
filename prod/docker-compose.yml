@@ -1,47 +1,25 @@
 version: "3.8"
 
 # =============================================================================
-# OTel Observability Stack - PRODUCTION (Hardened with Secrets)
-# Network: External 'observability-net' overlay network
+# OTel Observability Stack - PRODUCTION
+# Extracted from opentelemetry-demo with Swarm compatibility
 # Deploy: docker stack deploy -c docker-compose.yml otel-prod
 # =============================================================================
 
 services:
   # ---------------------------------------------------------------------------
-  # Nginx - HTTPS Reverse Proxy (SSL via Secrets)
-  # ---------------------------------------------------------------------------
-  nginx:
-    image: nginx:alpine
-    ports:
-      - "443:443"
-    configs:
-      - source: nginx-config
-        target: /etc/nginx/nginx.conf
-    secrets:
-      - site_cert
-      - site_key
-    networks:
-      - observability-net
-    deploy:
-      replicas: 1
-      placement:
-        constraints:
-          - node.role == manager
-      restart_policy:
-        condition: on-failure
-        delay: 5s
-
-  # ---------------------------------------------------------------------------
-  # OpenTelemetry Collector (Internal Only)
+  # OpenTelemetry Collector
   # ---------------------------------------------------------------------------
   otel-collector:
     image: otel/opentelemetry-collector-contrib:latest
-    # No ports exposed - internal only, accessed via nginx
+    ports:
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
     configs:
       - source: otel-config
         target: /etc/otelcol-contrib/config.yaml
     networks:
-      - observability-net
+      - observability
     deploy:
       replicas: 1
       restart_policy:
@@ -50,7 +28,7 @@ services:
         max_attempts: 5
 
   # ---------------------------------------------------------------------------
-  # Grafana Tempo (Internal Only)
+  # Grafana Tempo - Distributed Tracing Backend
   # ---------------------------------------------------------------------------
   tempo:
     image: grafana/tempo:latest
@@ -62,7 +40,7 @@ services:
     volumes:
       - tempo-data:/tmp/tempo
     networks:
-      - observability-net
+      - observability
     deploy:
       replicas: 1
       restart_policy:
@@ -71,19 +49,20 @@ services:
         max_attempts: 5
 
   # ---------------------------------------------------------------------------
-  # Grafana Loki (Internal Only)
+  # Grafana Loki - Log Aggregation
   # ---------------------------------------------------------------------------
   loki:
     image: grafana/loki:latest
     command: ["-config.file=/etc/loki/local-config.yaml"]
-    # No ports exposed - internal only
+    ports:
+      - "3100:3100"   # Loki HTTP API
     configs:
       - source: loki-config
         target: /etc/loki/local-config.yaml
     volumes:
       - loki-data:/loki
     networks:
-      - observability-net
+      - observability
     deploy:
       replicas: 1
       restart_policy:
@@ -92,26 +71,26 @@ services:
         max_attempts: 5
 
   # ---------------------------------------------------------------------------
-  # Grafana (Internal Only - Password from Secret)
+  # Grafana - Visualization Dashboard
   # ---------------------------------------------------------------------------
   grafana:
     image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
     environment:
       - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD__FILE=/run/secrets/grafana_password
+      - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_AUTH_ANONYMOUS_ENABLED=false
       - GF_USERS_ALLOW_SIGN_UP=false
-      - GF_SERVER_ROOT_URL=https://env-2333722.fin.libyanspider.cloud/
-      - GF_SERVER_SERVE_FROM_SUB_PATH=false
-    secrets:
-      - grafana_password
+      - GF_SERVER_ROOT_URL=http://localhost:3000/grafana/
+      - GF_SERVER_SERVE_FROM_SUB_PATH=true
     configs:
       - source: grafana-datasources
         target: /etc/grafana/provisioning/datasources/datasources.yaml
     volumes:
       - grafana-data:/var/lib/grafana
     networks:
-      - observability-net
+      - observability
     deploy:
       replicas: 1
       restart_policy:
@@ -120,22 +99,9 @@ services:
         max_attempts: 5
 
 # =============================================================================
-# Docker Secrets (must be created before deployment)
-# =============================================================================
-secrets:
-  site_cert:
-    external: true
-  site_key:
-    external: true
-  grafana_password:
-    external: true
-
-# =============================================================================
 # Docker Swarm Configs
 # =============================================================================
 configs:
-  nginx-config:
-    file: ./nginx.conf
   otel-config:
     file: ./otel-config.yaml
   tempo-config:
@@ -146,11 +112,12 @@ configs:
     file: ./grafana-datasources.yaml
 
 # =============================================================================
-# External Network
+# Networks
 # =============================================================================
 networks:
-  observability-net:
-    external: true
+  observability:
+    driver: overlay
+    attachable: true
 
 # =============================================================================
 # Volumes

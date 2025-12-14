@@ -39,6 +39,7 @@ echo "✅ external-nginx.conf updated."
 echo "🧹 Cleaning up old stacks..."
 docker stack rm otel-stack || true
 docker stack rm otel-prod || true
+docker stack rm otel-dev || true
 echo "⏳ Waiting 15s for cleanup..."
 sleep 15
 

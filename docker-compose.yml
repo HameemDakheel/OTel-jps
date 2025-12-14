@@ -32,7 +32,6 @@ services:
     restart: unless-stopped
     ports:
       - "${JAEGER_UI_PORT:-16686}:16686"
-      - "${JAEGER_GRPC_PORT:-4317}:4317"
     environment:
       - JAEGER_HOST
       - JAEGER_GRPC_PORT

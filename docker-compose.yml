@@ -126,11 +126,7 @@ services:
   # OpenSearch
   opensearch:
     container_name: opensearch
-    build:
-      context: ./
-      dockerfile: ${OPENSEARCH_DOCKERFILE}
-      cache_from:
-        - ${IMAGE_NAME}:${IMAGE_VERSION}-opensearch
+    image: ${OPENSEARCH_IMAGE}
     deploy:
       resources:
         limits:

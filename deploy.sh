@@ -37,6 +37,11 @@ echo "⏳ Waiting 10s for cleanup..."
 sleep 10
 
 echo "🐳 Deploying Docker Stack..."
+# Export environment variables for the stack
+set -a
+. ./.env
+set +a
+
 docker stack deploy -c docker-compose.yml otel-stack
 
 # 4. Instructions for Nginx

@@ -1,25 +1,25 @@
 version: "3.8"
 
 # =============================================================================
-# OTel Observability Stack - PRODUCTION (with HTTPS via Nginx)
-# Uses Jelastic's existing Let's Encrypt certificates
+# OTel Observability Stack - PRODUCTION (Hardened with Secrets)
+# Network: External 'observability-net' overlay network
 # Deploy: docker stack deploy -c docker-compose.yml otel-prod
 # =============================================================================
 
 services:
   # ---------------------------------------------------------------------------
-  # Nginx - HTTPS Reverse Proxy (uses Jelastic SSL certs)
+  # Nginx - HTTPS Reverse Proxy (SSL via Secrets)
   # ---------------------------------------------------------------------------
   nginx:
     image: nginx:alpine
     ports:
       - "443:443"
-      - "80:80"
     configs:
       - source: nginx-config
         target: /etc/nginx/nginx.conf
-    volumes:
-      - /var/lib/jelastic/keys:/etc/ssl/jelastic:ro
+    secrets:
+      - site_cert
+      - site_key
     networks:
       - observability-net
     deploy:
@@ -32,13 +32,11 @@ services:
         delay: 5s
 
   # ---------------------------------------------------------------------------
-  # OpenTelemetry Collector
+  # OpenTelemetry Collector (Internal Only)
   # ---------------------------------------------------------------------------
   otel-collector:
     image: otel/opentelemetry-collector-contrib:latest
-    ports:
-      - "4317:4317"   # OTLP gRPC (direct, no proxy)
-      - "4318:4318"   # OTLP HTTP
+    # No ports exposed - internal only, accessed via nginx
     configs:
       - source: otel-config
         target: /etc/otelcol-contrib/config.yaml
@@ -50,12 +48,9 @@ services:
         condition: on-failure
         delay: 5s
         max_attempts: 5
-      placement:
-        constraints:
-          - node.role == manager
 
   # ---------------------------------------------------------------------------
-  # Grafana Tempo - Distributed Tracing Backend
+  # Grafana Tempo (Internal Only)
   # ---------------------------------------------------------------------------
   tempo:
     image: grafana/tempo:latest
@@ -76,11 +71,12 @@ services:
         max_attempts: 5
 
   # ---------------------------------------------------------------------------
-  # Grafana Loki - Log Aggregation
+  # Grafana Loki (Internal Only)
   # ---------------------------------------------------------------------------
   loki:
     image: grafana/loki:latest
     command: ["-config.file=/etc/loki/local-config.yaml"]
+    # No ports exposed - internal only
     configs:
       - source: loki-config
         target: /etc/loki/local-config.yaml
@@ -96,17 +92,19 @@ services:
         max_attempts: 5
 
   # ---------------------------------------------------------------------------
-  # Grafana - Visualization Dashboard
+  # Grafana (Internal Only - Password from Secret)
   # ---------------------------------------------------------------------------
   grafana:
     image: grafana/grafana:latest
     environment:
       - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_PASSWORD__FILE=/run/secrets/grafana_password
       - GF_AUTH_ANONYMOUS_ENABLED=false
       - GF_USERS_ALLOW_SIGN_UP=false
-      - GF_SERVER_ROOT_URL=https://env-2333722.fin.libyanspider.cloud/grafana
-      - GF_SERVER_SERVE_FROM_SUB_PATH=true
+      - GF_SERVER_ROOT_URL=https://env-2333722.fin.libyanspider.cloud/
+      - GF_SERVER_SERVE_FROM_SUB_PATH=false
+    secrets:
+      - grafana_password
     configs:
       - source: grafana-datasources
         target: /etc/grafana/provisioning/datasources/datasources.yaml
@@ -120,6 +118,17 @@ services:
         condition: on-failure
         delay: 5s
         max_attempts: 5
+
+# =============================================================================
+# Docker Secrets (must be created before deployment)
+# =============================================================================
+secrets:
+  site_cert:
+    external: true
+  site_key:
+    external: true
+  grafana_password:
+    external: true
 
 # =============================================================================
 # Docker Swarm Configs

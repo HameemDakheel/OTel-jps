@@ -22,7 +22,12 @@ echo "✅ .env updated."
 # 2. Update external-nginx.conf with the current node's IP
 # (Assuming this script runs on the node where Nginx and the Stack are deployed together,
 # or at least on the manager node that Nginx points to)
-CURRENT_IP=$(hostname -I | awk '{print $1}')
+# Try to get the route to the internet to find the public/private LAN IP
+CURRENT_IP=$(ip route get 1.1.1.1 2>/dev/null | grep -oP 'src \K\S+')
+if [ -z "$CURRENT_IP" ]; then
+    # Fallback
+    CURRENT_IP=$(hostname -I | awk '{print $1}')
+fi
 echo "🔧 Detecting Node IP: $CURRENT_IP"
 
 echo "🔧 Updating external-nginx.conf..."
@@ -31,10 +36,11 @@ sed -i "s|server_name .*;|server_name ${ENV_HOSTNAME};|g" external-nginx.conf
 echo "✅ external-nginx.conf updated."
 
 # 3. Deploy Docker Stack
-echo "🧹 Cleaning up old stack (if any)..."
+echo "🧹 Cleaning up old stacks..."
 docker stack rm otel-stack || true
-echo "⏳ Waiting 10s for cleanup..."
-sleep 10
+docker stack rm otel-prod || true
+echo "⏳ Waiting 15s for cleanup..."
+sleep 15
 
 echo "🐳 Deploying Docker Stack..."
 # Export environment variables for the stack

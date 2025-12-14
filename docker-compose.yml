@@ -32,6 +32,7 @@ services:
     restart: unless-stopped
     ports:
       - "${JAEGER_UI_PORT:-16686}:16686"
+      # Internal gRPC port 4317 is accessible via network, no external mapping needed
     environment:
       - JAEGER_HOST
       - JAEGER_GRPC_PORT
@@ -39,8 +40,9 @@ services:
       - OTEL_COLLECTOR_HOST
       - OTEL_COLLECTOR_PORT_HTTP
       - MEMORY_MAX_TRACES=25000
-    volumes:
-      - ./jaeger/config.yml:/etc/jaeger/config.yml
+    configs:
+      - source: jaeger_config
+        target: /etc/jaeger/config.yml
     logging: *logging
 
   # Grafana
@@ -51,6 +53,9 @@ services:
       resources:
         limits:
           memory: 1000M
+      placement:
+        constraints:
+          - node.role == manager
     restart: unless-stopped
     environment:
       - "GF_INSTALL_PLUGINS=grafana-opensearch-datasource"
@@ -75,8 +80,11 @@ services:
     volumes:
       - ${HOST_FILESYSTEM:-/}:/hostfs:ro
       - ${DOCKER_SOCK:-/var/run/docker.sock}:/var/run/docker.sock:ro
-      - ${OTEL_COLLECTOR_CONFIG:-./otelcol-config.yml}:/etc/otelcol-config.yml
-      - ${OTEL_COLLECTOR_CONFIG_EXTRAS:-./otelcol-config-extras.yml}:/etc/otelcol-config-extras.yml
+    configs:
+      - source: otel_config
+        target: /etc/otelcol-config.yml
+      - source: otel_config_extras
+        target: /etc/otelcol-config-extras.yml
     ports:
       - "${OTEL_COLLECTOR_PORT_GRPC:-4317}:4317"
       - "${OTEL_COLLECTOR_PORT_HTTP:-4318}:4318"
@@ -111,8 +119,9 @@ services:
       - --web.route-prefix=/prometheus
       - --web.enable-otlp-receiver
       - --enable-feature=exemplar-storage
-    volumes:
-      - ./prometheus/prometheus-config.yaml:/etc/prometheus/prometheus-config.yaml
+    configs:
+      - source: prometheus_config
+        target: /etc/prometheus/prometheus-config.yaml
     deploy:
       resources:
         limits:
@@ -157,3 +166,13 @@ services:
       timeout: 10s
       retries: 10
     logging: *logging
+
+configs:
+  jaeger_config:
+    file: ./jaeger/config.yml
+  otel_config:
+    file: ${OTEL_COLLECTOR_CONFIG:-./otelcol-config.yml}
+  otel_config_extras:
+    file: ${OTEL_COLLECTOR_CONFIG_EXTRAS:-./otelcol-config-extras.yml}
+  prometheus_config:
+    file: ./prometheus/prometheus-config.yaml

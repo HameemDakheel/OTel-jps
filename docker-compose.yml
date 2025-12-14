@@ -81,10 +81,8 @@ services:
       - "${OTEL_COLLECTOR_PORT_GRPC}"
       - "${OTEL_COLLECTOR_PORT_HTTP}"
     depends_on:
-      jaeger:
-        condition: service_started
-      opensearch:
-        condition: service_healthy
+      - jaeger
+      - opensearch
     logging: *logging
     environment:
       - FRONTEND_PROXY_ADDR

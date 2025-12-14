@@ -11,7 +11,8 @@ x-default-logging: &logging
 networks:
   default:
     name: opentelemetry
-    driver: bridge
+    driver: overlay
+    attachable: true
 
 services:
   # ********************

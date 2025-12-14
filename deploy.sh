@@ -31,6 +31,11 @@ sed -i "s|server_name .*;|server_name ${ENV_HOSTNAME};|g" external-nginx.conf
 echo "✅ external-nginx.conf updated."
 
 # 3. Deploy Docker Stack
+echo "🧹 Cleaning up old stack (if any)..."
+docker stack rm otel-stack || true
+echo "⏳ Waiting 10s for cleanup..."
+sleep 10
+
 echo "🐳 Deploying Docker Stack..."
 docker stack deploy -c docker-compose.yml otel-stack
 

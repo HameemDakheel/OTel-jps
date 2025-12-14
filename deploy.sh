@@ -43,6 +43,21 @@ docker stack rm otel-dev || true
 echo "⏳ Waiting 15s for cleanup..."
 sleep 15
 
+# Pre-download Grafana plugins (workaround for container network issues)
+echo "🔌 Setting up Grafana plugins..."
+mkdir -p grafana/plugins
+if [ ! -d "grafana/plugins/grafana-opensearch-datasource" ]; then
+    echo "⬇️ Downloading grafana-opensearch-datasource..."
+    # Using a reliable mirror or direct link if possible, but standard API usually works from host
+    curl -L https://grafana.com/api/plugins/grafana-opensearch-datasource/versions/latest/download -o grafana/plugins/opensearch.zip
+    unzip -o grafana/plugins/opensearch.zip -d grafana/plugins/
+    rm grafana/plugins/opensearch.zip
+    echo "✅ Plugin downloaded."
+else
+    echo "✅ Plugin already present."
+fi
+chmod -R 777 grafana/plugins
+
 echo "🐳 Deploying Docker Stack..."
 # Export environment variables for the stack
 set -a

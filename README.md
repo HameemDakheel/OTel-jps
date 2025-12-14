@@ -5,6 +5,58 @@
 
 OpenTelemetry Observability Stack for Docker Swarm with **Production** and **Development** environments.
 
+## Architecture
+
+```mermaid
+graph TD
+    subgraph "External Access"
+        User((User/Browser))
+        ExtNginx[External Nginx<br/>Port: 443]
+    end
+
+    subgraph "Docker Swarm Stack (otel-stack)"
+        subgraph "Telemetry Router"
+            Collector[OTel Collector<br/>Ports: 4317/4318]
+        end
+
+        subgraph "Backends"
+            Jaeger[Jaeger (Traces)<br/>UI: 16686<br/>gRPC: 4317]
+            Prom[Prometheus (Metrics)<br/>Port: 9090]
+            OS[OpenSearch (Logs)<br/>Port: 9200]
+        end
+
+        subgraph "Visualization"
+            Grafana[Grafana<br/>Port: 3000]
+        end
+    end
+
+    %% Ingress Flow
+    User -->|HTTPS| ExtNginx
+    ExtNginx -->|/grafana/| Grafana
+    ExtNginx -->|/v1/traces| Collector
+    ExtNginx -->|/jaeger/| Jaeger
+
+    %% Data Flow
+    Collector -->|Traces| Jaeger
+    Collector -->|Metrics| Prom
+    Collector -->|Logs| OS
+
+    %% Visualization Flow
+    Grafana -->|Query| Jaeger
+    Grafana -->|Query| Prom
+    Grafana -->|Query| OS
+```
+
+## Services Overview
+
+| Service | Internal Port | Exposed Port | Description |
+|---------|---------------|--------------|-------------|
+| **OTel Collector** | 4317, 4318 | 4317, 4318 | Central telemetry router. Receives data via OTLP. |
+| **Grafana** | 3000 | 3000 | Main dashboard UI. Linked to all backends. |
+| **Jaeger** | 16686, 4317 | 16686, 4317 | Distributed tracing backend and UI. |
+| **Prometheus** | 9090 | 9090 | Metrics database (Time-Series). |
+| **OpenSearch** | 9200 | 9200 | Logs database (Search Engine). |
+
 ## 🏗️ Architecture
 
 ```

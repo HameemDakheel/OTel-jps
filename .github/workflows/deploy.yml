@@ -75,16 +75,22 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
       - name: Install Jelastic CLI
         run: |
           curl -s ftp://ftp.jelastic.com/pub/cli/jelastic-cli-installer.sh | bash
 
       - name: Authenticate with Jelastic
         run: |
-          echo "n" | ~/jelastic/users/authentication/signin \
+          yes n | ~/jelastic/users/authentication/signin \
             --login "${{ secrets.JELASTIC_USERNAME }}" \
             --password "${{ secrets.JELASTIC_TOKEN }}" \
-            --platformUrl "${{ secrets.JELASTIC_URL }}"
+            --platformUrl "${{ secrets.JELASTIC_URL }}" || true
 
       - name: Install JPS manifest
         run: |
@@ -113,16 +119,22 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
       - name: Install Jelastic CLI
         run: |
           curl -s ftp://ftp.jelastic.com/pub/cli/jelastic-cli-installer.sh | bash
 
       - name: Authenticate with Jelastic
         run: |
-          echo "n" | ~/jelastic/users/authentication/signin \
+          yes n | ~/jelastic/users/authentication/signin \
             --login "${{ secrets.JELASTIC_USERNAME }}" \
             --password "${{ secrets.JELASTIC_TOKEN }}" \
-            --platformUrl "${{ secrets.JELASTIC_URL }}"
+            --platformUrl "${{ secrets.JELASTIC_URL }}" || true
 
       - name: Pull latest code on Jelastic
         run: |

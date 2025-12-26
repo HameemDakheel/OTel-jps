@@ -4,7 +4,7 @@
 # Automatically deploys configuration changes to your Jelastic environment
 #
 # Prerequisites - Add these secrets to your GitHub repository:
-#   - JELASTIC_URL: Your provider URL (e.g., "https://app.hidora.com")
+#   - JELASTIC_URL: Your provider URL (e.g., "app.hidora.com") - without https://
 #   - JELASTIC_USERNAME: Your Jelastic login email
 #   - JELASTIC_TOKEN: Your Jelastic password or API token
 #   - JELASTIC_ENV_NAME: Your environment name (e.g., "observability")
@@ -62,25 +62,25 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Pull latest code on Jelastic
-        uses: DovnarAlexander/github-actions-jelastic@master
+        uses: abhisek91/github-actions-jelastic@master
         with:
           jelastic_url: ${{ secrets.JELASTIC_URL }}
           jelastic_username: ${{ secrets.JELASTIC_USERNAME }}
           jelastic_password: ${{ secrets.JELASTIC_TOKEN }}
-          task: environment/control/execCmdByGroup --envName ${{ secrets.JELASTIC_ENV_NAME }} --nodeGroup cp --commandList "[{\"command\":\"cd /opt/observability && git pull origin main\"}]"
+          task: environment/control/execCmdByGroup --envName ${{ secrets.JELASTIC_ENV_NAME }} --nodeGroup cp --commandList [{"command":"cd /opt/observability && git pull origin main"}]
 
       - name: Restart Docker Compose stack
-        uses: DovnarAlexander/github-actions-jelastic@master
+        uses: abhisek91/github-actions-jelastic@master
         with:
           jelastic_url: ${{ secrets.JELASTIC_URL }}
           jelastic_username: ${{ secrets.JELASTIC_USERNAME }}
           jelastic_password: ${{ secrets.JELASTIC_TOKEN }}
-          task: environment/control/execCmdByGroup --envName ${{ secrets.JELASTIC_ENV_NAME }} --nodeGroup cp --commandList "[{\"command\":\"cd /opt/observability && docker compose pull && docker compose up -d --remove-orphans\"}]"
+          task: environment/control/execCmdByGroup --envName ${{ secrets.JELASTIC_ENV_NAME }} --nodeGroup cp --commandList [{"command":"cd /opt/observability && docker compose pull && docker compose up -d --remove-orphans"}]
 
       - name: Health check
-        uses: DovnarAlexander/github-actions-jelastic@master
+        uses: abhisek91/github-actions-jelastic@master
         with:
           jelastic_url: ${{ secrets.JELASTIC_URL }}
           jelastic_username: ${{ secrets.JELASTIC_USERNAME }}
           jelastic_password: ${{ secrets.JELASTIC_TOKEN }}
-          task: environment/control/execCmdByGroup --envName ${{ secrets.JELASTIC_ENV_NAME }} --nodeGroup cp --commandList "[{\"command\":\"sleep 30 && docker compose -f /opt/observability/docker-compose.yml ps\"}]"
+          task: environment/control/execCmdByGroup --envName ${{ secrets.JELASTIC_ENV_NAME }} --nodeGroup cp --commandList [{"command":"sleep 30 && docker compose -f /opt/observability/docker-compose.yml ps"}]

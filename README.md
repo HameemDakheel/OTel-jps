@@ -1,217 +1,218 @@
-# OTel-jps
+# 🔭 Sovereign Observability Stack (LGTM+P)
 
-[![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-Observability-orange)](https://opentelemetry.io/)
-[![Docker Swarm](https://img.shields.io/badge/Docker-Swarm-blue)](https://docs.docker.com/engine/swarm/)
+> **Simple to Start, Ready to Scale** — Production-ready Grafana observability stack on Jelastic PaaS
 
-OpenTelemetry Observability Stack for Docker Swarm with **Production** and **Development** environments.
-
-## Architecture
-
-```mermaid
-graph TD
-    subgraph "External Access"
-        User((User/Browser))
-        ExtNginx[External Nginx<br/>Port: 443]
-    end
-
-    subgraph "Docker Swarm Stack (otel-stack)"
-        subgraph "Telemetry Router"
-            Collector[OTel Collector<br/>Ports: 4317/4318]
-        end
-
-        subgraph "Backends"
-            Jaeger[Jaeger (Traces)<br/>UI: 16686<br/>gRPC: 4317]
-            Prom[Prometheus (Metrics)<br/>Port: 9090]
-            OS[OpenSearch (Logs)<br/>Port: 9200]
-        end
-
-        subgraph "Visualization"
-            Grafana[Grafana<br/>Port: 3000]
-        end
-    end
-
-    %% Ingress Flow
-    User -->|HTTPS| ExtNginx
-    ExtNginx -->|/grafana/| Grafana
-    ExtNginx -->|/v1/traces| Collector
-    ExtNginx -->|/jaeger/| Jaeger
-
-    %% Data Flow
-    Collector -->|Traces| Jaeger
-    Collector -->|Metrics| Prom
-    Collector -->|Logs| OS
-
-    %% Visualization Flow
-    Grafana -->|Query| Jaeger
-    Grafana -->|Query| Prom
-    Grafana -->|Query| OS
-```
-
-## Services Overview
-
-| Service | Internal Port | Exposed Port | Description |
-|---------|---------------|--------------|-------------|
-| **OTel Collector** | 4317, 4318 | 4317, 4318 | Central telemetry router. Receives data via OTLP. |
-| **Grafana** | 3000 | 3000 | Main dashboard UI. Linked to all backends. |
-| **Jaeger** | 16686, 4317 | 16686, 4317 | Distributed tracing backend and UI. |
-| **Prometheus** | 9090 | 9090 | Metrics database (Time-Series). |
-| **OpenSearch** | 9200 | 9200 | Logs database (Search Engine). |
+A complete observability platform featuring **Loki** (Logs), **Grafana** (Dashboards), **Tempo** (Traces), **Mimir** (Metrics), and **Pyroscope** (Profiles), with **MinIO** object storage and **Grafana Alloy** as the unified ingestion gateway.
 
 ## 🏗️ Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    observability-net (overlay)                  │
-├─────────────────────────────────┬───────────────────────────────┤
-│         PROD STACK              │          DEV STACK            │
-│  ┌─────────────────────────┐    │    ┌─────────────────────┐    │
-│  │ otel-collector (:4317)  │    │    │ OTel Demo Services  │    │
-│  │ tempo                   │◄───┼────│ (frontend, cart,    │    │
-│  │ loki (:3100)            │    │    │  checkout, etc.)    │    │
-│  │ grafana (:3000)         │    │    │ jaeger (:16686)     │    │
-│  └─────────────────────────┘    │    │ grafana (:3001)     │    │
-│                                 │    └─────────────────────┘    │
-└─────────────────────────────────┴───────────────────────────────┘
+│                     Customer Applications                        │
+│                    (OTLP → :4317 / :4318)                       │
+└────────────────────────────┬────────────────────────────────────┘
+                             │
+┌────────────────────────────▼────────────────────────────────────┐
+│                    TIER 3: GATEWAY LAYER                         │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │                    Grafana Alloy                          │   │
+│  │    • OTLP Receiver (gRPC/HTTP)                           │   │
+│  │    • Batch Processing & Retry Logic                       │   │
+│  └──────────────────────────────────────────────────────────┘   │
+└────────────────────────────┬────────────────────────────────────┘
+                             │
+┌────────────────────────────▼────────────────────────────────────┐
+│                   TIER 2: BACKEND LAYER                          │
+│  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌──────────┐           │
+│  │  Mimir  │  │  Loki   │  │  Tempo  │  │ Pyroscope│           │
+│  │ Metrics │  │  Logs   │  │ Traces  │  │ Profiles │           │
+│  └────┬────┘  └────┬────┘  └────┬────┘  └────┬─────┘           │
+│       └────────────┴────────────┴────────────┘                  │
+│                            │                                     │
+│  ┌─────────────────────────▼─────────────────────────────────┐  │
+│  │                      Grafana UI                            │  │
+│  │         (Unified dashboards with correlations)             │  │
+│  └────────────────────────────────────────────────────────────┘  │
+└────────────────────────────┬────────────────────────────────────┘
+                             │
+┌────────────────────────────▼────────────────────────────────────┐
+│                   TIER 1: STORAGE LAYER                          │
+│  ┌────────────────────────────────────────────────────────────┐  │
+│  │                        MinIO                                │  │
+│  │              S3-compatible Object Storage                   │  │
+│  │     [mimir] [loki] [tempo] [pyroscope] buckets             │  │
+│  └────────────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────────┘
 ```
-
-## 📋 Prerequisites
-
-- Docker Swarm cluster (initialized)
-- Git installed on manager node
 
 ## 🚀 Quick Start
 
-### 1. Clone Repository (on Swarm Manager)
+### Option 1: Jelastic One-Click Install
+
+1. Go to your Jelastic Dashboard
+2. Click **Import** → **URL**
+3. Paste: `https://raw.githubusercontent.com/YOUR-ORG/jelastic-observability/main/manifest.jps`
+4. Click **Install**
+5. Save the credentials from the success popup
+
+### Option 2: Local Docker Compose
 
 ```bash
-git clone https://github.com/HameemDakheel/OTel-jps.git /app
-cd /app
+# Clone the repository
+git clone https://github.com/YOUR-ORG/jelastic-observability.git
+cd jelastic-observability
+
+# Copy and edit environment variables
+cp .env.example .env
+# Edit .env with your preferred passwords
+
+# Start the stack
+docker compose up -d
+
+# Access Grafana at http://localhost:3000
 ```
 
-### 2. Create Overlay Network
-
-```bash
-docker network create -d overlay --attachable observability-net
-```
-
-### 3. Deploy Production Stack
-
-```bash
-cd /app/prod
-docker stack deploy -c docker-compose.yml otel-prod
-```
-
-### 4. Deploy Development Stack (Optional)
-
-```bash
-cd /app/dev
-docker stack deploy -c docker-compose.yml otel-dev
-```
-
-## 📡 Access Points
-
-### Production Stack
-
-| Service | URL | Credentials |
-|---------|-----|-------------|
-| **Grafana** | `http://<DOMAIN>:3000` | admin / admin |
-| **Loki API** | `http://<DOMAIN>:3100` | - |
-| **OTLP gRPC** | `<DOMAIN>:4317` | - |
-| **OTLP HTTP** | `http://<DOMAIN>:4318` | - |
-
-### Development Stack
-
-| Service | URL | Credentials |
-|---------|-----|-------------|
-| **Web Store** | `http://<DOMAIN>:8080` | - |
-| **Grafana** | `http://<DOMAIN>:3001` | admin / admin |
-| **Jaeger UI** | `http://<DOMAIN>:16686` | - |
-
-## 📁 Repository Structure
-
-```
-OTel-jps/
-├── prod/                         # Production Stack
-│   ├── docker-compose.yml        # Swarm stack definition
-│   ├── otel-config.yaml          # OTel Collector config
-│   ├── tempo-config.yaml         # Tempo config
-│   ├── loki-config.yaml          # Loki config
-│   └── grafana-datasources.yaml  # Auto-provisioned datasources
-│
-├── dev/                          # Development Stack
-│   ├── docker-compose.yml        # OTel Demo services
-│   ├── otel-config.yaml          # Dev collector config
-│   └── grafana-datasources.yaml  # Dev datasources (Jaeger)
-│
-└── README.md
-```
-
-## 🔧 Stack Management
-
-### View Services
-
-```bash
-# Production
-docker stack services otel-prod
-
-# Development
-docker stack services otel-dev
-```
-
-### View Logs
-
-```bash
-docker service logs otel-prod_otel-collector
-docker service logs otel-dev_frontend
-```
-
-### Remove Stacks
-
-```bash
-docker stack rm otel-prod
-docker stack rm otel-dev
-```
-
-## 🔌 Sending Telemetry
-
-Configure your applications to send OTLP data to the collector:
+## 📡 Connecting Your Applications
 
 ### Environment Variables
 
+Configure your OpenTelemetry-instrumented application with:
+
 ```bash
-OTEL_EXPORTER_OTLP_ENDPOINT=http://<DOMAIN>:4317
-OTEL_SERVICE_NAME=my-service
+# Replace <your-env-domain> with your Jelastic environment URL
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://<your-env-domain>:4317
+export OTEL_SERVICE_NAME=my-application
+export OTEL_RESOURCE_ATTRIBUTES=deployment.environment=production
 ```
 
-### Example: Go Application
+### Jelastic Auto-Linker (Recommended)
 
-```go
-exporter, _ := otlptracegrpc.New(ctx,
-    otlptracegrpc.WithEndpoint("DOMAIN:4317"),
-    otlptracegrpc.WithInsecure(),
-)
+Use the included add-on to automatically inject environment variables:
+
+1. Go to your **Application Environment** in Jelastic
+2. Click **Add-Ons** → **Import**
+3. Paste: `https://raw.githubusercontent.com/YOUR-ORG/jelastic-observability/main/addons/linker.jps`
+4. Enter your Observability environment name
+5. Click **Install** — your app is now connected!
+
+## 📁 Project Structure
+
+```
+.
+├── .github/workflows/
+│   └── deploy.yml              # CI/CD for auto-deployment
+├── addons/
+│   └── linker.jps              # App connection add-on
+├── configs/
+│   ├── alloy/
+│   │   └── config.alloy        # Telemetry pipeline
+│   ├── grafana/
+│   │   ├── grafana.ini         # Grafana settings
+│   │   └── provisioning/
+│   │       └── datasources/
+│   │           └── datasources.yml
+│   ├── loki.yaml               # Logs backend
+│   ├── mimir.yaml              # Metrics backend
+│   ├── tempo.yaml              # Traces backend
+│   └── pyroscope.yaml          # Profiling backend
+├── scripts/
+│   └── init_buckets.sh         # MinIO initialization
+├── docker-compose.yml          # Service definitions
+├── manifest.jps                # Jelastic installer
+└── README.md
 ```
 
-### Example: Python Application
+## 🔌 Service Ports
 
-```python
-from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+| Service | Port | Protocol | Purpose |
+|---------|------|----------|---------|
+| Grafana | 3000 | HTTP | Dashboard UI |
+| Mimir | 9009 | HTTP | Prometheus-compatible API |
+| Loki | 3100 | HTTP | Log queries & push |
+| Tempo | 3200 | HTTP | Trace queries |
+| Tempo | 4317 | gRPC | OTLP traces (direct) |
+| Tempo | 4318 | HTTP | OTLP traces (direct) |
+| Pyroscope | 4040 | HTTP | Profiling API |
+| MinIO | 9000 | HTTP | S3 API |
+| MinIO | 9001 | HTTP | Console UI |
+| Alloy | 12345 | HTTP | Pipeline UI |
+| Alloy | 4319 | gRPC | OTLP ingestion (via Alloy) |
+| Alloy | 4320 | HTTP | OTLP ingestion (via Alloy) |
 
-exporter = OTLPSpanExporter(endpoint="DOMAIN:4317", insecure=True)
+## 📈 Scaling Guide
+
+| Stage | Trigger | Action |
+|-------|---------|--------|
+| **Vertical** | CPU > 80% or OOM | Increase cloudlets in Jelastic dashboard |
+| **Storage** | Disk full | Add larger volumes or migrate MinIO to dedicated cluster |
+| **Horizontal Ingestion** | Alloy dropping packets | Add Alloy replicas behind load balancer |
+| **Distributed** | Query slowness > 10s | Split to microservices mode |
+
+## 🔧 Configuration
+
+### Retention Settings
+
+Edit the respective config files to adjust retention:
+
+- **Metrics (Mimir)**: `configs/mimir.yaml` → `compactor_blocks_retention_period`
+- **Logs (Loki)**: `configs/loki.yaml` → `retention_period`
+- **Traces (Tempo)**: `configs/tempo.yaml` → `block_retention`
+
+Default: **31 days (744h)**
+
+### Multi-Tenancy
+
+To enable multi-tenancy, set in each config:
+
+```yaml
+multitenancy_enabled: true
+# or
+auth_enabled: true
 ```
 
-## 📊 Grafana Dashboards
+Then configure Alloy to inject `X-Scope-OrgID` headers.
 
-Both Grafana instances are pre-configured with datasources:
+## 🔐 Security Notes
 
-### Production Grafana (:3000)
-- **Tempo** - Distributed tracing
-- **Loki** - Log aggregation (with trace correlation)
+1. **Change default passwords** in `.env` before deployment
+2. **Restrict firewall rules** to only allow your application IPs
+3. **Enable TLS** for production deployments
+4. **Never commit** `.env` files to version control
 
-### Dev Grafana (:3001)
-- **Jaeger** - Tracing for demo services
-- Links to prod Tempo/Loki if available
+## 🐛 Troubleshooting
+
+### Check Service Health
+
+```bash
+# Via docker compose
+docker compose ps
+docker compose logs <service-name>
+
+# Health endpoints
+curl http://localhost:3000/api/health    # Grafana
+curl http://localhost:9009/ready         # Mimir
+curl http://localhost:3100/ready         # Loki
+curl http://localhost:3200/ready         # Tempo
+```
+
+### Common Issues
+
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| Services crashing | Buckets not created | Wait for `minio-init` to complete |
+| No data in Grafana | Wrong OTLP endpoint | Check firewall and port mappings |
+| Ingestion errors | Bucket access denied | Verify MinIO credentials match |
+
+## 📚 Documentation
+
+- [Grafana Documentation](https://grafana.com/docs/)
+- [Mimir Docs](https://grafana.com/docs/mimir/latest/)
+- [Loki Docs](https://grafana.com/docs/loki/latest/)
+- [Tempo Docs](https://grafana.com/docs/tempo/latest/)
+- [Pyroscope Docs](https://grafana.com/docs/pyroscope/latest/)
+- [Alloy Docs](https://grafana.com/docs/alloy/latest/)
+- [Jelastic JPS Reference](https://docs.cloudscripting.com/)
 
 ## 📄 License
 
-MIT License
+MIT License — See [LICENSE](LICENSE) for details.

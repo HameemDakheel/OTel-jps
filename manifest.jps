@@ -1,0 +1,195 @@
+{
+  "jpsType": "install",
+  "jpsVersion": "1.3",
+  "name": "Grafana LGTM+P Stack (Production Ready)",
+  "id": "lgtm-stack",
+  "version": "1.0.0",
+  "logo": "https://grafana.com/static/assets/img/grafana_icon.svg",
+  "description": "Sovereign Observability Stack: Loki (Logs), Grafana (UI), Tempo (Traces), Mimir (Metrics), Pyroscope (Profiles) with MinIO object storage",
+  "homepage": "https://grafana.com",
+
+  "categories": ["apps/observability", "apps/monitoring"],
+
+  "globals": {
+    "MINIO_AK": "${fn.password(20)}",
+    "MINIO_SK": "${fn.password(40)}",
+    "GRAFANA_PW": "${fn.password(16)}",
+    "STACK_PATH": "/opt/observability",
+    "REPO_URL": "${settings.repoUrl:https://github.com/your-org/jelastic-observability.git}"
+  },
+
+  "settings": {
+    "fields": [
+      {
+        "name": "repoUrl",
+        "caption": "Git Repository URL",
+        "type": "string",
+        "default": "https://github.com/your-org/jelastic-observability.git",
+        "required": true
+      },
+      {
+        "name": "envName",
+        "caption": "Environment Name",
+        "type": "string",
+        "default": "observability",
+        "required": true
+      }
+    ]
+  },
+
+  "nodes": [
+    {
+      "nodeType": "dockerengine",
+      "nodeGroup": "cp",
+      "displayName": "Observability Stack",
+      "count": 1,
+      "cloudlets": 32,
+      "fixedCloudlets": 8,
+      "diskLimit": 100,
+      "isSLBAccessEnabled": true,
+      "env": {
+        "JELASTIC_PORTS": "3000,4317,4318,9000,9001,12345"
+      }
+    }
+  ],
+
+  "onInstall": [
+    { "call": "installDependencies" },
+    { "call": "deployStack" },
+    { "call": "setupFirewall" },
+    { "call": "waitForServices" }
+  ],
+
+  "actions": {
+    "installDependencies": {
+      "cmd[cp]": [
+        "curl -fsSL https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m) -o /usr/local/bin/docker-compose",
+        "chmod +x /usr/local/bin/docker-compose",
+        "yum install -y git gettext curl jq || apt-get install -y git gettext curl jq",
+        "docker-compose --version"
+      ]
+    },
+
+    "deployStack": {
+      "cmd[cp]": [
+        "mkdir -p ${globals.STACK_PATH}",
+        "cd ${globals.STACK_PATH}",
+        "git clone ${globals.REPO_URL} . || (cd ${globals.STACK_PATH} && git pull)",
+
+        "cat > .env << 'ENVEOF'\nMINIO_ACCESS_KEY=${globals.MINIO_AK}\nMINIO_SECRET_KEY=${globals.MINIO_SK}\nGRAFANA_PASSWORD=${globals.GRAFANA_PW}\nENVEOF",
+
+        "chmod 600 .env",
+        "mkdir -p data/grafana && chown -R 472:472 data/grafana",
+
+        "docker-compose pull",
+        "docker-compose up -d"
+      ]
+    },
+
+    "setupFirewall": {
+      "api": [
+        {
+          "method": "environment.security.addrule",
+          "params": {
+            "rule": {
+              "name": "Grafana UI",
+              "ports": "3000",
+              "protocol": "TCP",
+              "type": "INBOUND",
+              "enabled": true
+            }
+          }
+        },
+        {
+          "method": "environment.security.addrule",
+          "params": {
+            "rule": {
+              "name": "OTLP gRPC",
+              "ports": "4317",
+              "protocol": "TCP",
+              "type": "INBOUND",
+              "enabled": true
+            }
+          }
+        },
+        {
+          "method": "environment.security.addrule",
+          "params": {
+            "rule": {
+              "name": "OTLP HTTP",
+              "ports": "4318",
+              "protocol": "TCP",
+              "type": "INBOUND",
+              "enabled": true
+            }
+          }
+        },
+        {
+          "method": "environment.security.addrule",
+          "params": {
+            "rule": {
+              "name": "MinIO Console",
+              "ports": "9001",
+              "protocol": "TCP",
+              "type": "INBOUND",
+              "enabled": true
+            }
+          }
+        },
+        {
+          "method": "environment.security.addrule",
+          "params": {
+            "rule": {
+              "name": "Alloy UI",
+              "ports": "12345",
+              "protocol": "TCP",
+              "type": "INBOUND",
+              "enabled": true
+            }
+          }
+        }
+      ]
+    },
+
+    "waitForServices": {
+      "cmd[cp]": [
+        "echo 'Waiting for services to be healthy...'",
+        "sleep 30",
+        "docker-compose ps",
+        "echo 'Checking Grafana...'",
+        "curl -sf http://localhost:3000/api/health || echo 'Grafana not ready yet'",
+        "echo 'Checking Mimir...'",
+        "curl -sf http://localhost:9009/ready || echo 'Mimir not ready yet'",
+        "echo 'Deployment complete!'"
+      ]
+    },
+
+    "upgrade": {
+      "cmd[cp]": [
+        "cd ${globals.STACK_PATH}",
+        "git pull",
+        "docker-compose pull",
+        "docker-compose up -d --remove-orphans"
+      ]
+    },
+
+    "restart": {
+      "cmd[cp]": [
+        "cd ${globals.STACK_PATH}",
+        "docker-compose restart"
+      ]
+    },
+
+    "logs": {
+      "cmd[cp]": [
+        "cd ${globals.STACK_PATH}",
+        "docker-compose logs --tail=100"
+      ]
+    }
+  },
+
+  "success": {
+    "text": "## 🎉 LGTM+P Stack Deployed Successfully!\n\n### Access Points\n\n| Service | URL |\n|---------|-----|\n| **Grafana Dashboard** | [http://${env.domain}:3000](http://${env.domain}:3000) |\n| **MinIO Console** | [http://${env.domain}:9001](http://${env.domain}:9001) |\n| **Alloy Pipeline UI** | [http://${env.domain}:12345](http://${env.domain}:12345) |\n\n### Credentials\n\n| Service | Username | Password |\n|---------|----------|----------|\n| Grafana | `admin` | `${globals.GRAFANA_PW}` |\n| MinIO | `${globals.MINIO_AK}` | `${globals.MINIO_SK}` |\n\n### OTLP Endpoints for Your Applications\n\n```bash\n# gRPC (recommended)\nOTEL_EXPORTER_OTLP_ENDPOINT=http://${env.domain}:4317\n\n# HTTP\nOTEL_EXPORTER_OTLP_ENDPOINT=http://${env.domain}:4318\n```\n\n### Quick Test\n\n```bash\n# Send test trace\ncurl -X POST http://${env.domain}:4318/v1/traces \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"resourceSpans\":[]}'\n```\n\n**Note:** Save these credentials securely. They cannot be retrieved later.",
+    "email": "Your LGTM+P observability stack is ready!\n\nGrafana: http://${env.domain}:3000\nUser: admin\nPassword: ${globals.GRAFANA_PW}\n\nOTLP Endpoint: http://${env.domain}:4317"
+  }
+}

@@ -1,0 +1,116 @@
+# =============================================================================
+# Grafana Mimir Configuration - Monolithic Mode with S3 Backend
+# =============================================================================
+# Mode: all-in-one (target=all)
+# Storage: MinIO S3-compatible
+# Multi-tenancy: Disabled for simplicity
+# =============================================================================
+
+# Run all components in a single process
+target: all
+
+# Disable multi-tenancy for simpler setup
+multitenancy_enabled: false
+
+# Server configuration
+server:
+  http_listen_port: 8080
+  grpc_listen_port: 9095
+  log_level: info
+
+# Common storage configuration for all components
+common:
+  storage:
+    backend: s3
+    s3:
+      endpoint: minio:9000
+      access_key_id: ${MINIO_ACCESS_KEY}
+      secret_access_key: ${MINIO_SECRET_KEY}
+      insecure: true
+      bucket_name: mimir
+
+# Blocks storage (long-term TSDB blocks)
+blocks_storage:
+  backend: s3
+  s3:
+    endpoint: minio:9000
+    access_key_id: ${MINIO_ACCESS_KEY}
+    secret_access_key: ${MINIO_SECRET_KEY}
+    insecure: true
+    bucket_name: mimir
+  bucket_store:
+    sync_dir: /data/tsdb-sync
+  tsdb:
+    dir: /data/tsdb
+
+# Ingester configuration
+ingester:
+  ring:
+    instance_addr: 127.0.0.1
+    kvstore:
+      store: inmemory
+    replication_factor: 1
+
+# Distributor configuration
+distributor:
+  ring:
+    instance_addr: 127.0.0.1
+    kvstore:
+      store: inmemory
+
+# Compactor configuration
+compactor:
+  data_dir: /data/compactor
+  sharding_ring:
+    kvstore:
+      store: inmemory
+
+# Store-gateway configuration
+store_gateway:
+  sharding_ring:
+    replication_factor: 1
+    kvstore:
+      store: inmemory
+
+# Ruler storage (for recording/alerting rules)
+ruler_storage:
+  backend: s3
+  s3:
+    endpoint: minio:9000
+    access_key_id: ${MINIO_ACCESS_KEY}
+    secret_access_key: ${MINIO_SECRET_KEY}
+    insecure: true
+    bucket_name: mimir
+
+# Alertmanager storage
+alertmanager_storage:
+  backend: s3
+  s3:
+    endpoint: minio:9000
+    access_key_id: ${MINIO_ACCESS_KEY}
+    secret_access_key: ${MINIO_SECRET_KEY}
+    insecure: true
+    bucket_name: mimir
+
+# Limits configuration
+limits:
+  # Ingestion limits
+  ingestion_rate: 100000
+  ingestion_burst_size: 200000
+  max_global_series_per_user: 1500000
+  max_global_series_per_metric: 50000
+
+  # Query limits
+  max_fetched_series_per_query: 100000
+  max_fetched_chunks_per_query: 2000000
+
+  # Compactor limits
+  compactor_blocks_retention_period: 744h  # 31 days
+
+# Activity tracker
+activity_tracker:
+  filepath: /data/activity.log
+
+# Analytics
+usage_stats:
+  enabled: false

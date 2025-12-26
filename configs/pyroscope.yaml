@@ -1,0 +1,74 @@
+# =============================================================================
+# Grafana Pyroscope Configuration - Monolithic Mode with S3 Backend
+# =============================================================================
+# Mode: Monolithic (all components in single process)
+# Storage: MinIO S3-compatible
+# =============================================================================
+
+# Target mode - run all components
+target: all
+
+# Server configuration
+server:
+  http_listen_port: 4040
+  grpc_listen_port: 9096
+  log_level: info
+
+# Disable multi-tenancy
+multitenancy_enabled: false
+
+# Self-profiling (optional - enable for debugging)
+self_profiling:
+  disable_push: true
+
+# Analytics
+analytics:
+  reporting_enabled: false
+
+# Storage configuration
+storage:
+  backend: s3
+  s3:
+    endpoint: minio:9000
+    bucket_name: pyroscope
+    access_key_id: ${MINIO_ACCESS_KEY}
+    secret_access_key: ${MINIO_SECRET_KEY}
+    insecure: true
+
+# Ingester configuration
+ingester:
+  lifecycler:
+    ring:
+      kvstore:
+        store: inmemory
+      replication_factor: 1
+
+# Distributor configuration
+distributor:
+  ring:
+    kvstore:
+      store: inmemory
+
+# Compactor configuration
+compactor:
+  ring:
+    kvstore:
+      store: inmemory
+
+# Query scheduler
+query_scheduler:
+  ring:
+    kvstore:
+      store: inmemory
+
+# Store gateway
+store_gateway:
+  sharding_ring:
+    replication_factor: 1
+    kvstore:
+      store: inmemory
+
+# Limits configuration
+limits:
+  max_query_length: 24h
+  max_query_lookback: 744h  # 31 days

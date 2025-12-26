@@ -1,0 +1,100 @@
+# =============================================================================
+# Grafana Datasource Provisioning
+# =============================================================================
+# Auto-configured datasources for LGTM+P stack with correlations
+# =============================================================================
+
+apiVersion: 1
+
+datasources:
+  # -------------------------------------------------------------------------
+  # Prometheus-compatible Metrics (Mimir)
+  # -------------------------------------------------------------------------
+  - name: Mimir
+    type: prometheus
+    access: proxy
+    url: http://mimir:8080/prometheus
+    isDefault: true
+    editable: false
+    jsonData:
+      httpMethod: POST
+      exemplarTraceIdDestinations:
+        - name: traceID
+          datasourceUid: tempo
+
+  # -------------------------------------------------------------------------
+  # Logs (Loki)
+  # -------------------------------------------------------------------------
+  - name: Loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    editable: false
+    jsonData:
+      maxLines: 1000
+      derivedFields:
+        - name: TraceID
+          matcherRegex: '"traceId":"([a-f0-9]+)"'
+          url: '$${__value.raw}'
+          datasourceUid: tempo
+          matcherType: regex
+        - name: trace_id
+          matcherRegex: 'trace_id=([a-f0-9]+)'
+          url: '$${__value.raw}'
+          datasourceUid: tempo
+          matcherType: regex
+
+  # -------------------------------------------------------------------------
+  # Traces (Tempo)
+  # -------------------------------------------------------------------------
+  - name: Tempo
+    uid: tempo
+    type: tempo
+    access: proxy
+    url: http://tempo:3200
+    editable: false
+    jsonData:
+      httpMethod: GET
+      tracesToLogsV2:
+        datasourceUid: loki
+        spanStartTimeShift: '-1h'
+        spanEndTimeShift: '1h'
+        filterByTraceID: true
+        filterBySpanID: false
+        customQuery: true
+        query: '{service_name="$${__span.tags["service.name"]}"} | json'
+      tracesToMetrics:
+        datasourceUid: mimir
+        spanStartTimeShift: '-1h'
+        spanEndTimeShift: '1h'
+        tags:
+          - key: service.name
+            value: service
+          - key: http.method
+            value: method
+        queries:
+          - name: Request Rate
+            query: 'sum(rate(traces_spanmetrics_calls_total{$$__tags}[5m]))'
+          - name: Error Rate
+            query: 'sum(rate(traces_spanmetrics_calls_total{$$__tags, status_code="STATUS_CODE_ERROR"}[5m]))'
+      tracesToProfiles:
+        datasourceUid: pyroscope
+        profileTypeId: 'process_cpu:cpu:nanoseconds:cpu:nanoseconds'
+        customQuery: true
+        query: '{service_name="$${__span.tags["service.name"]}"}'
+      serviceMap:
+        datasourceUid: mimir
+      nodeGraph:
+        enabled: true
+      lokiSearch:
+        datasourceUid: loki
+
+  # -------------------------------------------------------------------------
+  # Continuous Profiling (Pyroscope)
+  # -------------------------------------------------------------------------
+  - name: Pyroscope
+    uid: pyroscope
+    type: grafana-pyroscope-datasource
+    access: proxy
+    url: http://pyroscope:4040
+    editable: false

@@ -1,178 +1,240 @@
-# Copyright The OpenTelemetry Authors
-# SPDX-License-Identifier: Apache-2.0
-
-x-default-logging: &logging
-  driver: "json-file"
-  options:
-    max-size: "5m"
-    max-file: "2"
-    tag: "{{.Name}}"
-
-networks:
-  default:
-    name: opentelemetry
-    driver: overlay
-    attachable: true
+# =============================================================================
+# Sovereign Observability Stack (LGTM+P)
+# Grafana Loki, Grafana, Tempo, Mimir, Pyroscope on MinIO
+# =============================================================================
 
 services:
-  # ********************
-  # Telemetry Components
-  # ********************
-
-  # Jaeger
-  jaeger:
-    image: ${JAEGERTRACING_IMAGE}
-    container_name: jaeger
-    command:
-      - "--config=file:/etc/jaeger/config.yml"
-    deploy:
-      resources:
-        limits:
-          memory: 5000M
-    restart: unless-stopped
-    ports:
-      - "${JAEGER_UI_PORT:-16686}:16686"
-      # Internal gRPC port 4317 is accessible via network, no external mapping needed
+  # ===========================================================================
+  # TIER 1: STORAGE LAYER
+  # ===========================================================================
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    entrypoint: [""]
+    command: >
+      sh -c "
+        mkdir -p /data/mimir /data/loki /data/tempo /data/pyroscope &&
+        minio server /data --console-address ':9001'
+      "
     environment:
-      - JAEGER_HOST
-      - JAEGER_GRPC_PORT
-      - PROMETHEUS_ADDR
-      - OTEL_COLLECTOR_HOST
-      - OTEL_COLLECTOR_PORT_HTTP
-      - MEMORY_MAX_TRACES=25000
-    configs:
-      - source: jaeger_config
-        target: /etc/jaeger/config.yml
-    logging: *logging
-
-  # Grafana
-  grafana:
-    image: ${GRAFANA_IMAGE}
-    container_name: grafana
-    deploy:
-      resources:
-        limits:
-          memory: 1000M
-      placement:
-        constraints:
-          - node.role == manager
-    restart: unless-stopped
-    environment:
-      - "GF_INSTALL_PLUGINS=grafana-opensearch-datasource"
+      - MINIO_ROOT_USER=${MINIO_ACCESS_KEY}
+      - MINIO_ROOT_PASSWORD=${MINIO_SECRET_KEY}
     volumes:
-      - ./grafana/grafana.ini:/etc/grafana/grafana.ini
-      - ./grafana/provisioning/:/etc/grafana/provisioning/
+      - minio_data:/data
     ports:
-      - "${GRAFANA_PORT:-3000}:3000"
-    logging: *logging
-
-  # OpenTelemetry Collector
-  otel-collector:
-    image: ${COLLECTOR_CONTRIB_IMAGE}
-    container_name: otel-collector
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-    restart: unless-stopped
-    command: [ "--config=/etc/otelcol-config.yml", "--config=/etc/otelcol-config-extras.yml" ]
-    user: 0:0
-    volumes:
-      - ${HOST_FILESYSTEM:-/}:/hostfs:ro
-      - ${DOCKER_SOCK:-/var/run/docker.sock}:/var/run/docker.sock:ro
-    configs:
-      - source: otel_config
-        target: /etc/otelcol-config.yml
-      - source: otel_config_extras
-        target: /etc/otelcol-config-extras.yml
-    ports:
-      - "${OTEL_COLLECTOR_PORT_GRPC:-4317}:4317"
-      - "${OTEL_COLLECTOR_PORT_HTTP:-4318}:4318"
-    depends_on:
-      - jaeger
-      - opensearch
-    logging: *logging
-    environment:
-      - FRONTEND_PROXY_ADDR
-      - IMAGE_PROVIDER_HOST
-      - IMAGE_PROVIDER_PORT
-      - HOST_FILESYSTEM
-      - OTEL_COLLECTOR_HOST
-      - OTEL_COLLECTOR_PORT_GRPC
-      - OTEL_COLLECTOR_PORT_HTTP
-      - POSTGRES_HOST
-      - POSTGRES_PORT
-      - POSTGRES_PASSWORD
-      - GOMEMLIMIT=400MiB
-
-  # Prometheus
-  prometheus:
-    image: ${PROMETHEUS_IMAGE}
-    container_name: prometheus
-    command:
-      - --web.console.templates=/etc/prometheus/consoles
-      - --web.console.libraries=/etc/prometheus/console_libraries
-      - --storage.tsdb.retention.time=1h
-      - --config.file=/etc/prometheus/prometheus-config.yaml
-      - --storage.tsdb.path=/prometheus
-      - --web.enable-lifecycle
-      - --web.route-prefix=/prometheus
-      - --web.enable-otlp-receiver
-      - --enable-feature=exemplar-storage
-    configs:
-      - source: prometheus_config
-        target: /etc/prometheus/prometheus-config.yaml
-    deploy:
-      resources:
-        limits:
-          memory: 1G
-    restart: unless-stopped
-    ports:
-      - "${PROMETHEUS_PORT:-9090}:${PROMETHEUS_PORT:-9090}"
-    logging: *logging
-
-  # OpenSearch
-  opensearch:
-    container_name: opensearch
-    image: ${OPENSEARCH_IMAGE}
-    deploy:
-      resources:
-        limits:
-          memory: 2G
-    restart: unless-stopped
-    environment:
-      - cluster.name=demo-cluster
-      - node.name=demo-node
-      - bootstrap.memory_lock=true
-      - discovery.type=single-node
-      - OPENSEARCH_JAVA_OPTS=-Xms1g -Xmx1g
-      - DISABLE_INSTALL_DEMO_CONFIG=true
-      - DISABLE_SECURITY_PLUGIN=true
-      # Workaround on OSX for https://bugs.openjdk.org/browse/JDK-8345296
-      - _JAVA_OPTIONS
-    ulimits:
-      memlock:
-        soft: -1
-        hard: -1
-      nofile:
-        soft: 65536
-        hard: 65536
-    ports:
-      - "9200:9200"
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # MinIO Console
+    networks:
+      - obs-net
     healthcheck:
-      test: curl -s http://localhost:9200/_cluster/health | grep -E '"status":"(green|yellow)"'
-      start_period: 10s
-      interval: 5s
-      timeout: 10s
-      retries: 10
-    logging: *logging
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-configs:
-  jaeger_config:
-    file: ./jaeger/config.yml
-  otel_config:
-    file: ${OTEL_COLLECTOR_CONFIG:-./otelcol-config.yml}
-  otel_config_extras:
-    file: ${OTEL_COLLECTOR_CONFIG_EXTRAS:-./otelcol-config-extras.yml}
-  prometheus_config:
-    file: ./prometheus/prometheus-config.yaml
+  # MinIO bucket initialization
+  minio-init:
+    image: minio/mc:latest
+    container_name: minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+        mc alias set local http://minio:9000 $${MINIO_ACCESS_KEY} $${MINIO_SECRET_KEY} &&
+        mc mb --ignore-existing local/mimir &&
+        mc mb --ignore-existing local/loki &&
+        mc mb --ignore-existing local/tempo &&
+        mc mb --ignore-existing local/pyroscope &&
+        echo 'Buckets created successfully' &&
+        exit 0
+      "
+    environment:
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+    networks:
+      - obs-net
+
+  # ===========================================================================
+  # TIER 2: BACKEND LAYER - Observability Databases
+  # ===========================================================================
+
+  # --- Metrics (Mimir) ---
+  mimir:
+    image: grafana/mimir:2.14.0
+    container_name: mimir
+    command:
+      - -config.file=/etc/mimir/mimir.yaml
+      - -target=all
+    volumes:
+      - ./configs/mimir.yaml:/etc/mimir/mimir.yaml:ro
+      - mimir_data:/data
+    environment:
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+    ports:
+      - "9009:8080"   # HTTP API (mapped to 9009 to avoid conflicts)
+    networks:
+      - obs-net
+    depends_on:
+      minio-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # --- Logs (Loki) ---
+  loki:
+    image: grafana/loki:3.0.0
+    container_name: loki
+    command:
+      - -config.file=/etc/loki/loki.yaml
+    volumes:
+      - ./configs/loki.yaml:/etc/loki/loki.yaml:ro
+      - loki_data:/loki
+    environment:
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+    ports:
+      - "3100:3100"   # HTTP API
+    networks:
+      - obs-net
+    depends_on:
+      minio-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3100/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # --- Traces (Tempo) ---
+  tempo:
+    image: grafana/tempo:2.6.0
+    container_name: tempo
+    command:
+      - -config.file=/etc/tempo/tempo.yaml
+    volumes:
+      - ./configs/tempo.yaml:/etc/tempo/tempo.yaml:ro
+      - tempo_data:/var/tempo
+    environment:
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+    ports:
+      - "3200:3200"   # HTTP API
+      - "4317:4317"   # OTLP gRPC (for direct ingestion)
+      - "4318:4318"   # OTLP HTTP (for direct ingestion)
+    networks:
+      - obs-net
+    depends_on:
+      minio-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3200/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # --- Profiles (Pyroscope) ---
+  pyroscope:
+    image: grafana/pyroscope:1.10.0
+    container_name: pyroscope
+    command:
+      - server
+      - -config.file=/etc/pyroscope/pyroscope.yaml
+    volumes:
+      - ./configs/pyroscope.yaml:/etc/pyroscope/pyroscope.yaml:ro
+      - pyroscope_data:/data
+    environment:
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+    ports:
+      - "4040:4040"   # HTTP API
+    networks:
+      - obs-net
+    depends_on:
+      minio-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:4040/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ===========================================================================
+  # TIER 3: GATEWAY LAYER - Telemetry Collection & Visualization
+  # ===========================================================================
+
+  # --- Telemetry Collector (Alloy) ---
+  alloy:
+    image: grafana/alloy:v1.5.0
+    container_name: alloy
+    volumes:
+      - ./configs/alloy/config.alloy:/etc/alloy/config.alloy:ro
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+    ports:
+      - "12345:12345"   # Alloy UI
+      - "4319:4317"     # OTLP gRPC (external ingestion via Alloy)
+      - "4320:4318"     # OTLP HTTP (external ingestion via Alloy)
+    networks:
+      - obs-net
+    depends_on:
+      - loki
+      - mimir
+      - tempo
+      - pyroscope
+
+  # --- Visualization (Grafana) ---
+  grafana:
+    image: grafana/grafana:11.3.0
+    container_name: grafana
+    user: "472"
+    volumes:
+      - ./configs/grafana/grafana.ini:/etc/grafana/grafana.ini:ro
+      - ./configs/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana_data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+      - GF_FEATURE_TOGGLES_ENABLE=traceqlEditor,flameGraph,correlations
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+      - GF_INSTALL_PLUGINS=grafana-pyroscope-app
+    ports:
+      - "3000:3000"   # Grafana UI
+    networks:
+      - obs-net
+    depends_on:
+      - loki
+      - mimir
+      - tempo
+      - pyroscope
+
+# =============================================================================
+# VOLUMES - Persistent Storage
+# =============================================================================
+volumes:
+  minio_data:
+    driver: local
+  mimir_data:
+    driver: local
+  loki_data:
+    driver: local
+  tempo_data:
+    driver: local
+  pyroscope_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+# =============================================================================
+# NETWORKS
+# =============================================================================
+networks:
+  obs-net:
+    driver: bridge

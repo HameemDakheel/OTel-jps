@@ -1,0 +1,105 @@
+# =============================================================================
+# Deploy to Jelastic on Push
+# =============================================================================
+# Automatically deploys configuration changes to your Jelastic environment
+#
+# Prerequisites:
+# 1. Create a Jelastic Access Token (Dashboard > Settings > Access Tokens)
+# 2. Add these secrets to your GitHub repository:
+#    - JELASTIC_TOKEN: Your Jelastic API token
+#    - JELASTIC_ENV_NAME: Your environment name (e.g., "observability")
+#    - JELASTIC_PLATFORM_URL: Your provider URL (e.g., "app.jelastic.com")
+# =============================================================================
+
+name: Deploy to Jelastic
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'configs/**'
+      - 'docker-compose.yml'
+      - 'manifest.jps'
+  workflow_dispatch:  # Allow manual triggering
+
+env:
+  STACK_PATH: /opt/observability
+
+jobs:
+  validate:
+    name: Validate Configuration
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate Docker Compose
+        run: |
+          docker compose config --quiet
+          echo "✅ docker-compose.yml is valid"
+
+      - name: Validate YAML configs
+        run: |
+          for file in configs/*.yaml configs/**/*.yaml configs/**/*.yml; do
+            if [ -f "$file" ]; then
+              python3 -c "import yaml; yaml.safe_load(open('$file'))"
+              echo "✅ $file is valid"
+            fi
+          done
+
+      - name: Validate JPS manifest
+        run: |
+          python3 -c "import json; json.load(open('manifest.jps'))"
+          echo "✅ manifest.jps is valid"
+
+  deploy:
+    name: Deploy to Jelastic
+    runs-on: ubuntu-latest
+    needs: validate
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Jelastic CLI
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/jelastic/jelastic-cli/main/install.sh | bash
+          echo "$HOME/.jelastic-cli/bin" >> $GITHUB_PATH
+
+      - name: Configure Jelastic CLI
+        run: |
+          jelastic users signin --platformUrl "${{ secrets.JELASTIC_PLATFORM_URL }}" --token "${{ secrets.JELASTIC_TOKEN }}"
+
+      - name: Deploy updated configs
+        run: |
+          # Execute commands on the Jelastic node
+          jelastic environment control execCmdById \
+            --envName "${{ secrets.JELASTIC_ENV_NAME }}" \
+            --nodeGroup cp \
+            --commandList "[
+              {\"command\": \"cd ${{ env.STACK_PATH }} && git pull origin main\"},
+              {\"command\": \"cd ${{ env.STACK_PATH }} && docker-compose pull\"},
+              {\"command\": \"cd ${{ env.STACK_PATH }} && docker-compose up -d --remove-orphans\"}
+            ]"
+
+      - name: Verify deployment
+        run: |
+          sleep 30
+          jelastic environment control execCmdById \
+            --envName "${{ secrets.JELASTIC_ENV_NAME }}" \
+            --nodeGroup cp \
+            --commandList "[
+              {\"command\": \"docker-compose -f ${{ env.STACK_PATH }}/docker-compose.yml ps\"}
+            ]"
+
+      - name: Health check
+        run: |
+          jelastic environment control execCmdById \
+            --envName "${{ secrets.JELASTIC_ENV_NAME }}" \
+            --nodeGroup cp \
+            --commandList "[
+              {\"command\": \"curl -sf http://localhost:3000/api/health && echo 'Grafana OK' || echo 'Grafana not ready'\"},
+              {\"command\": \"curl -sf http://localhost:9009/ready && echo 'Mimir OK' || echo 'Mimir not ready'\"},
+              {\"command\": \"curl -sf http://localhost:3100/ready && echo 'Loki OK' || echo 'Loki not ready'\"}
+            ]"

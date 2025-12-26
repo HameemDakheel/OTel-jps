@@ -1,0 +1,121 @@
+{
+  "jpsType": "update",
+  "jpsVersion": "1.3",
+  "name": "Connect to Observability Stack",
+  "id": "obs-linker",
+  "version": "1.0.0",
+  "logo": "https://grafana.com/static/assets/img/grafana_icon.svg",
+  "description": "Automatically configure your application to send telemetry to the LGTM+P observability stack",
+
+  "targetNodes": {
+    "nodeGroup": "*"
+  },
+
+  "settings": {
+    "fields": [
+      {
+        "name": "obsEnvName",
+        "caption": "Observability Environment Name",
+        "type": "string",
+        "required": true,
+        "placeholder": "e.g., observability"
+      },
+      {
+        "name": "serviceName",
+        "caption": "Service Name",
+        "type": "string",
+        "default": "${env.envName}",
+        "required": true
+      },
+      {
+        "name": "samplingRatio",
+        "caption": "Trace Sampling Ratio",
+        "type": "string",
+        "default": "1.0",
+        "required": false
+      }
+    ]
+  },
+
+  "onInstall": [
+    { "call": "discoverGateway" },
+    { "call": "injectEnvVars" }
+  ],
+
+  "actions": {
+    "discoverGateway": {
+      "script": [
+        "var obsEnv = jelastic.environment.control.GetEnvInfo('${settings.obsEnvName}', session);",
+        "if (obsEnv.result !== 0) {",
+        "  return { result: obsEnv.result, error: 'Could not find observability environment: ${settings.obsEnvName}' };",
+        "}",
+        "",
+        "var nodes = obsEnv.nodes;",
+        "var gatewayIP = null;",
+        "",
+        "for (var i = 0; i < nodes.length; i++) {",
+        "  if (nodes[i].nodeGroup === 'cp') {",
+        "    gatewayIP = nodes[i].address || nodes[i].intIP;",
+        "    break;",
+        "  }",
+        "}",
+        "",
+        "if (!gatewayIP) {",
+        "  return { result: 1, error: 'Could not find gateway node in observability environment' };",
+        "}",
+        "",
+        "return {",
+        "  result: 0,",
+        "  gatewayIP: gatewayIP,",
+        "  onAfterReturn: {",
+        "    setGlobals: {",
+        "      GATEWAY_IP: gatewayIP",
+        "    }",
+        "  }",
+        "};"
+      ]
+    },
+
+    "injectEnvVars": {
+      "forEach(node:nodes.cp)": {
+        "api": {
+          "method": "environment.control.AddContainerEnvVars",
+          "params": {
+            "nodeId": "${@node.id}",
+            "vars": {
+              "OTEL_EXPORTER_OTLP_ENDPOINT": "http://${globals.GATEWAY_IP}:4317",
+              "OTEL_EXPORTER_OTLP_PROTOCOL": "grpc",
+              "OTEL_SERVICE_NAME": "${settings.serviceName}",
+              "OTEL_RESOURCE_ATTRIBUTES": "service.name=${settings.serviceName},deployment.environment=${env.envName}",
+              "OTEL_TRACES_SAMPLER": "parentbased_traceidratio",
+              "OTEL_TRACES_SAMPLER_ARG": "${settings.samplingRatio}"
+            }
+          }
+        }
+      }
+    },
+
+    "removeEnvVars": {
+      "forEach(node:nodes.cp)": {
+        "api": {
+          "method": "environment.control.RemoveContainerEnvVars",
+          "params": {
+            "nodeId": "${@node.id}",
+            "vars": [
+              "OTEL_EXPORTER_OTLP_ENDPOINT",
+              "OTEL_EXPORTER_OTLP_PROTOCOL",
+              "OTEL_SERVICE_NAME",
+              "OTEL_RESOURCE_ATTRIBUTES",
+              "OTEL_TRACES_SAMPLER",
+              "OTEL_TRACES_SAMPLER_ARG"
+            ]
+          }
+        }
+      }
+    }
+  },
+
+  "success": {
+    "text": "## ✅ Application Connected to Observability Stack\n\nYour application is now configured to send telemetry data.\n\n### Environment Variables Injected\n\n| Variable | Value |\n|----------|-------|\n| `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://${globals.GATEWAY_IP}:4317` |\n| `OTEL_SERVICE_NAME` | `${settings.serviceName}` |\n\n### Next Steps\n\n1. **Restart your application** to pick up the new environment variables\n2. Ensure your application uses an **OpenTelemetry SDK**\n3. Check **Grafana** for incoming traces, logs, and metrics\n\n### Verify Connection\n\nCheck if your app is sending data:\n\n```bash\ncurl http://${globals.GATEWAY_IP}:12345/api/v0/component/otelcol.receiver.otlp.default/debug\n```"
+  }
+}

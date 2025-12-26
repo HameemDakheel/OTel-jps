@@ -1,0 +1,140 @@
+// =============================================================================
+// Grafana Alloy Configuration - The Abstraction Layer
+// =============================================================================
+// Unified telemetry pipeline receiving OTLP and forwarding to LGTM+P backends
+// =============================================================================
+
+// -----------------------------------------------------------------------------
+// LOGGING CONFIGURATION
+// -----------------------------------------------------------------------------
+logging {
+  level  = "info"
+  format = "logfmt"
+}
+
+// -----------------------------------------------------------------------------
+// OTLP RECEIVER - Main ingestion endpoint
+// -----------------------------------------------------------------------------
+// Receives traces, metrics, and logs via OTLP protocol
+otelcol.receiver.otlp "default" {
+  grpc {
+    endpoint = "0.0.0.0:4317"
+  }
+  http {
+    endpoint = "0.0.0.0:4318"
+  }
+
+  output {
+    metrics = [otelcol.processor.batch.default.input]
+    logs    = [otelcol.processor.batch.default.input]
+    traces  = [otelcol.processor.batch.default.input]
+  }
+}
+
+// -----------------------------------------------------------------------------
+// BATCH PROCESSOR - Improves efficiency
+// -----------------------------------------------------------------------------
+otelcol.processor.batch "default" {
+  send_batch_size = 1000
+  timeout         = "10s"
+
+  output {
+    metrics = [otelcol.exporter.prometheus.mimir.input]
+    logs    = [otelcol.exporter.loki.loki_backend.input]
+    traces  = [otelcol.exporter.otlp.tempo.input]
+  }
+}
+
+// -----------------------------------------------------------------------------
+// METRICS EXPORTER - Forward to Mimir via Prometheus Remote Write
+// -----------------------------------------------------------------------------
+otelcol.exporter.prometheus "mimir" {
+  forward_to = [prometheus.remote_write.mimir.receiver]
+}
+
+prometheus.remote_write "mimir" {
+  endpoint {
+    url = "http://mimir:8080/api/v1/push"
+
+    // Retry configuration for reliability
+    queue_config {
+      capacity             = 10000
+      max_samples_per_send = 2000
+      batch_send_deadline  = "5s"
+      max_shards           = 10
+      min_shards           = 1
+      max_backoff          = "5m"
+      min_backoff          = "1s"
+    }
+  }
+}
+
+// -----------------------------------------------------------------------------
+// LOGS EXPORTER - Forward to Loki
+// -----------------------------------------------------------------------------
+otelcol.exporter.loki "loki_backend" {
+  forward_to = [loki.write.local.receiver]
+}
+
+loki.write "local" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+
+    // Retry configuration
+    max_backoff_period  = "5m"
+    min_backoff_period  = "1s"
+    max_backoff_retries = 10
+  }
+}
+
+// -----------------------------------------------------------------------------
+// TRACES EXPORTER - Forward to Tempo via OTLP
+// -----------------------------------------------------------------------------
+otelcol.exporter.otlp "tempo" {
+  client {
+    endpoint = "tempo:4317"
+    tls {
+      insecure = true
+    }
+
+    // Retry configuration
+    retry_on_failure {
+      enabled             = true
+      initial_interval    = "1s"
+      max_interval        = "30s"
+      max_elapsed_time    = "5m"
+    }
+  }
+}
+
+// -----------------------------------------------------------------------------
+// PYROSCOPE RECEIVER - Continuous Profiling
+// -----------------------------------------------------------------------------
+// Receive profiles via HTTP push
+pyroscope.receive_http "default" {
+  http {
+    listen_address = "0.0.0.0"
+    listen_port    = 9999
+  }
+
+  forward_to = [pyroscope.write.local.receiver]
+}
+
+pyroscope.write "local" {
+  endpoint {
+    url = "http://pyroscope:4040"
+  }
+}
+
+// -----------------------------------------------------------------------------
+// SELF-MONITORING - Expose Alloy's own metrics
+// -----------------------------------------------------------------------------
+prometheus.exporter.self "alloy" {}
+
+prometheus.scrape "alloy_self" {
+  targets    = prometheus.exporter.self.alloy.targets
+  forward_to = [prometheus.remote_write.mimir.receiver]
+
+  scrape_interval = "30s"
+  job_name        = "alloy"
+}

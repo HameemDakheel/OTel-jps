@@ -2,11 +2,11 @@
 # Deploy to Jelastic on Push
 # =============================================================================
 # Automatically deploys configuration changes to your Jelastic environment
+# Uses direct Jelastic REST API calls (no third-party actions)
 #
 # Prerequisites - Add these secrets to your GitHub repository:
 #   - JELASTIC_URL: Your provider URL (e.g., "app.hidora.com") - without https://
-#   - JELASTIC_USERNAME: Your Jelastic login email
-#   - JELASTIC_TOKEN: Your Jelastic password or API token
+#   - JELASTIC_TOKEN: Your Jelastic session token or API key
 #   - JELASTIC_ENV_NAME: Your environment name (e.g., "observability")
 # =============================================================================
 
@@ -62,25 +62,44 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Pull latest code on Jelastic
-        uses: abhisek91/github-actions-jelastic@master
-        with:
-          jelastic_url: ${{ secrets.JELASTIC_URL }}
-          jelastic_username: ${{ secrets.JELASTIC_USERNAME }}
-          jelastic_password: ${{ secrets.JELASTIC_TOKEN }}
-          task: environment/control/execCmdByGroup --envName ${{ secrets.JELASTIC_ENV_NAME }} --nodeGroup cp --commandList [{"command":"cd /opt/observability && git pull origin main"}]
+        run: |
+          RESPONSE=$(curl -s -X POST "https://${{ secrets.JELASTIC_URL }}/1.0/environment/control/rest/execCmdByGroup" \
+            -d "envName=${{ secrets.JELASTIC_ENV_NAME }}" \
+            -d "session=${{ secrets.JELASTIC_TOKEN }}" \
+            -d "nodeGroup=cp" \
+            -d 'commandList=[{"command":"cd /opt/observability && git pull origin main"}]')
+          echo "Response: $RESPONSE"
+          if echo "$RESPONSE" | grep -q '"result":0'; then
+            echo "✅ Git pull successful"
+          else
+            echo "❌ Git pull failed"
+            exit 1
+          fi
 
       - name: Restart Docker Compose stack
-        uses: abhisek91/github-actions-jelastic@master
-        with:
-          jelastic_url: ${{ secrets.JELASTIC_URL }}
-          jelastic_username: ${{ secrets.JELASTIC_USERNAME }}
-          jelastic_password: ${{ secrets.JELASTIC_TOKEN }}
-          task: environment/control/execCmdByGroup --envName ${{ secrets.JELASTIC_ENV_NAME }} --nodeGroup cp --commandList [{"command":"cd /opt/observability && docker compose pull && docker compose up -d --remove-orphans"}]
+        run: |
+          RESPONSE=$(curl -s -X POST "https://${{ secrets.JELASTIC_URL }}/1.0/environment/control/rest/execCmdByGroup" \
+            -d "envName=${{ secrets.JELASTIC_ENV_NAME }}" \
+            -d "session=${{ secrets.JELASTIC_TOKEN }}" \
+            -d "nodeGroup=cp" \
+            -d 'commandList=[{"command":"cd /opt/observability && docker compose pull && docker compose up -d --remove-orphans"}]')
+          echo "Response: $RESPONSE"
+          if echo "$RESPONSE" | grep -q '"result":0'; then
+            echo "✅ Docker Compose restart successful"
+          else
+            echo "❌ Docker Compose restart failed"
+            exit 1
+          fi
+
+      - name: Wait for services
+        run: sleep 30
 
       - name: Health check
-        uses: abhisek91/github-actions-jelastic@master
-        with:
-          jelastic_url: ${{ secrets.JELASTIC_URL }}
-          jelastic_username: ${{ secrets.JELASTIC_USERNAME }}
-          jelastic_password: ${{ secrets.JELASTIC_TOKEN }}
-          task: environment/control/execCmdByGroup --envName ${{ secrets.JELASTIC_ENV_NAME }} --nodeGroup cp --commandList [{"command":"sleep 30 && docker compose -f /opt/observability/docker-compose.yml ps"}]
+        run: |
+          RESPONSE=$(curl -s -X POST "https://${{ secrets.JELASTIC_URL }}/1.0/environment/control/rest/execCmdByGroup" \
+            -d "envName=${{ secrets.JELASTIC_ENV_NAME }}" \
+            -d "session=${{ secrets.JELASTIC_TOKEN }}" \
+            -d "nodeGroup=cp" \
+            -d 'commandList=[{"command":"docker compose -f /opt/observability/docker-compose.yml ps"}]')
+          echo "Response: $RESPONSE"
+          echo "✅ Deployment complete!"

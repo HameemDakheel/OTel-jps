@@ -81,7 +81,7 @@ jobs:
 
       - name: Authenticate with Jelastic
         run: |
-          ~/jelastic/users/authentication/signin \
+          echo "n" | ~/jelastic/users/authentication/signin \
             --login "${{ secrets.JELASTIC_USERNAME }}" \
             --password "${{ secrets.JELASTIC_TOKEN }}" \
             --platformUrl "${{ secrets.JELASTIC_URL }}"
@@ -119,7 +119,7 @@ jobs:
 
       - name: Authenticate with Jelastic
         run: |
-          ~/jelastic/users/authentication/signin \
+          echo "n" | ~/jelastic/users/authentication/signin \
             --login "${{ secrets.JELASTIC_USERNAME }}" \
             --password "${{ secrets.JELASTIC_TOKEN }}" \
             --platformUrl "${{ secrets.JELASTIC_URL }}"

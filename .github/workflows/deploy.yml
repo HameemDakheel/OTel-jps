@@ -2,11 +2,12 @@
 # Deploy to Jelastic on Push
 # =============================================================================
 # Automatically deploys configuration changes to your Jelastic environment
-# Uses direct Jelastic REST API calls (no third-party actions)
+# Uses official Jelastic CLI installer
 #
 # Prerequisites - Add these secrets to your GitHub repository:
 #   - JELASTIC_URL: Your provider URL (e.g., "app.hidora.com") - without https://
-#   - JELASTIC_TOKEN: Your Jelastic session token or API key
+#   - JELASTIC_USERNAME: Your Jelastic login email
+#   - JELASTIC_TOKEN: Your Jelastic password
 #   - JELASTIC_ENV_NAME: Your environment name (e.g., "observability")
 # =============================================================================
 
@@ -19,7 +20,16 @@ on:
       - 'configs/**'
       - 'docker-compose.yml'
       - 'manifest.jps'
-  workflow_dispatch:  # Allow manual triggering
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Deployment action'
+        required: true
+        default: 'update'
+        type: choice
+        options:
+          - update
+          - install
 
 env:
   STACK_PATH: /opt/observability
@@ -51,55 +61,90 @@ jobs:
           python3 -c "import json; json.load(open('manifest.jps'))"
           echo "✅ manifest.jps is valid"
 
-  deploy:
-    name: Deploy to Jelastic
+  # ===========================================================================
+  # FRESH INSTALL - Use this for first-time deployment
+  # Trigger manually with action: install
+  # ===========================================================================
+  install:
+    name: Install JPS (Fresh Deployment)
     runs-on: ubuntu-latest
     needs: validate
-    if: github.ref == 'refs/heads/main'
+    if: github.event.inputs.action == 'install'
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Install Jelastic CLI
+        run: |
+          curl -s ftp://ftp.jelastic.com/pub/cli/jelastic-cli-installer.sh | bash
+
+      - name: Authenticate with Jelastic
+        run: |
+          ~/jelastic/users/authentication/signin \
+            --login "${{ secrets.JELASTIC_USERNAME }}" \
+            --password "${{ secrets.JELASTIC_TOKEN }}" \
+            --platformUrl "${{ secrets.JELASTIC_URL }}"
+
+      - name: Install JPS manifest
+        run: |
+          # Get the raw URL of the manifest from this repo
+          JPS_URL="https://raw.githubusercontent.com/${{ github.repository }}/main/manifest.jps"
+
+          ~/jelastic/marketplace/jps/install \
+            --jps "$JPS_URL" \
+            --envName "${{ secrets.JELASTIC_ENV_NAME }}" \
+            --displayName "LGTM Observability Stack" \
+            --skipNodeEmails true
+
+          echo "✅ JPS installation complete!"
+
+  # ===========================================================================
+  # UPDATE - Use this for updating existing deployment
+  # Triggers automatically on push to main
+  # ===========================================================================
+  update:
+    name: Update Existing Deployment
+    runs-on: ubuntu-latest
+    needs: validate
+    if: github.event.inputs.action != 'install'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Jelastic CLI
+        run: |
+          curl -s ftp://ftp.jelastic.com/pub/cli/jelastic-cli-installer.sh | bash
+
+      - name: Authenticate with Jelastic
+        run: |
+          ~/jelastic/users/authentication/signin \
+            --login "${{ secrets.JELASTIC_USERNAME }}" \
+            --password "${{ secrets.JELASTIC_TOKEN }}" \
+            --platformUrl "${{ secrets.JELASTIC_URL }}"
+
       - name: Pull latest code on Jelastic
         run: |
-          RESPONSE=$(curl -s -X POST "https://${{ secrets.JELASTIC_URL }}/1.0/environment/control/rest/execCmdByGroup" \
-            -d "envName=${{ secrets.JELASTIC_ENV_NAME }}" \
-            -d "session=${{ secrets.JELASTIC_TOKEN }}" \
-            -d "nodeGroup=cp" \
-            -d 'commandList=[{"command":"cd /opt/observability && git pull origin main"}]')
-          echo "Response: $RESPONSE"
-          if echo "$RESPONSE" | grep -q '"result":0'; then
-            echo "✅ Git pull successful"
-          else
-            echo "❌ Git pull failed"
-            exit 1
-          fi
+          ~/jelastic/environment/control/execCmdByGroup \
+            --envName "${{ secrets.JELASTIC_ENV_NAME }}" \
+            --nodeGroup cp \
+            --commandList '[{"command":"cd /opt/observability && git pull origin main"}]'
 
       - name: Restart Docker Compose stack
         run: |
-          RESPONSE=$(curl -s -X POST "https://${{ secrets.JELASTIC_URL }}/1.0/environment/control/rest/execCmdByGroup" \
-            -d "envName=${{ secrets.JELASTIC_ENV_NAME }}" \
-            -d "session=${{ secrets.JELASTIC_TOKEN }}" \
-            -d "nodeGroup=cp" \
-            -d 'commandList=[{"command":"cd /opt/observability && docker compose pull && docker compose up -d --remove-orphans"}]')
-          echo "Response: $RESPONSE"
-          if echo "$RESPONSE" | grep -q '"result":0'; then
-            echo "✅ Docker Compose restart successful"
-          else
-            echo "❌ Docker Compose restart failed"
-            exit 1
-          fi
+          ~/jelastic/environment/control/execCmdByGroup \
+            --envName "${{ secrets.JELASTIC_ENV_NAME }}" \
+            --nodeGroup cp \
+            --commandList '[{"command":"cd /opt/observability && docker compose pull && docker compose up -d --remove-orphans"}]'
 
       - name: Wait for services
         run: sleep 30
 
       - name: Health check
         run: |
-          RESPONSE=$(curl -s -X POST "https://${{ secrets.JELASTIC_URL }}/1.0/environment/control/rest/execCmdByGroup" \
-            -d "envName=${{ secrets.JELASTIC_ENV_NAME }}" \
-            -d "session=${{ secrets.JELASTIC_TOKEN }}" \
-            -d "nodeGroup=cp" \
-            -d 'commandList=[{"command":"docker compose -f /opt/observability/docker-compose.yml ps"}]')
-          echo "Response: $RESPONSE"
-          echo "✅ Deployment complete!"
+          ~/jelastic/environment/control/execCmdByGroup \
+            --envName "${{ secrets.JELASTIC_ENV_NAME }}" \
+            --nodeGroup cp \
+            --commandList '[{"command":"docker compose -f /opt/observability/docker-compose.yml ps"}]'
+          echo "✅ Deployment update complete!"

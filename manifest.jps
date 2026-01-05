@@ -15,7 +15,7 @@
     "MINIO_SK": "${fn.password(40)}",
     "GRAFANA_PW": "${fn.password(16)}",
     "STACK_PATH": "/opt/observability",
-    "REPO_URL": "${settings.repoUrl:https://github.com/your-org/jelastic-observability.git}"
+    "REPO_URL": "${settings.repoUrl:https://github.com/HameemDakheel/OTel-jps.git}"
   },
 
   "settings": {
@@ -63,26 +63,21 @@
   "actions": {
     "installDependencies": {
       "cmd[cp]": [
-        "curl -fsSL https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m) -o /usr/local/bin/docker-compose",
-        "chmod +x /usr/local/bin/docker-compose",
-        "yum install -y git gettext curl jq || apt-get install -y git gettext curl jq",
-        "docker-compose --version"
+        "yum install -y git jq || true"
       ]
     },
 
     "deployStack": {
       "cmd[cp]": [
         "mkdir -p ${globals.STACK_PATH}",
-        "cd ${globals.STACK_PATH}",
-        "git clone ${globals.REPO_URL} . || (cd ${globals.STACK_PATH} && git pull)",
-
-        "cat > .env << 'ENVEOF'\nMINIO_ACCESS_KEY=${globals.MINIO_AK}\nMINIO_SECRET_KEY=${globals.MINIO_SK}\nGRAFANA_PASSWORD=${globals.GRAFANA_PW}\nENVEOF",
-
-        "chmod 600 .env",
-        "mkdir -p data/grafana && chown -R 472:472 data/grafana",
-
-        "docker-compose pull",
-        "docker-compose up -d"
+        "cd ${globals.STACK_PATH} && (git clone ${globals.REPO_URL} . 2>/dev/null || git pull origin main)",
+        "echo 'MINIO_ACCESS_KEY=${globals.MINIO_AK}' > ${globals.STACK_PATH}/.env",
+        "echo 'MINIO_SECRET_KEY=${globals.MINIO_SK}' >> ${globals.STACK_PATH}/.env",
+        "echo 'GRAFANA_PASSWORD=${globals.GRAFANA_PW}' >> ${globals.STACK_PATH}/.env",
+        "chmod 600 ${globals.STACK_PATH}/.env",
+        "mkdir -p ${globals.STACK_PATH}/data/grafana && chown -R 472:472 ${globals.STACK_PATH}/data/grafana",
+        "cd ${globals.STACK_PATH} && docker compose pull",
+        "cd ${globals.STACK_PATH} && docker compose up -d"
       ]
     },
 
@@ -155,7 +150,7 @@
       "cmd[cp]": [
         "echo 'Waiting for services to be healthy...'",
         "sleep 30",
-        "docker-compose ps",
+        "cd ${globals.STACK_PATH} && docker compose ps",
         "echo 'Checking Grafana...'",
         "curl -sf http://localhost:3000/api/health || echo 'Grafana not ready yet'",
         "echo 'Checking Mimir...'",
@@ -168,22 +163,22 @@
       "cmd[cp]": [
         "cd ${globals.STACK_PATH}",
         "git pull",
-        "docker-compose pull",
-        "docker-compose up -d --remove-orphans"
+        "docker compose pull",
+        "docker compose up -d --remove-orphans"
       ]
     },
 
     "restart": {
       "cmd[cp]": [
         "cd ${globals.STACK_PATH}",
-        "docker-compose restart"
+        "docker compose restart"
       ]
     },
 
     "logs": {
       "cmd[cp]": [
         "cd ${globals.STACK_PATH}",
-        "docker-compose logs --tail=100"
+        "docker compose logs --tail=100"
       ]
     }
   },

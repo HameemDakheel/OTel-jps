@@ -17,6 +17,8 @@ services:
       - /var/lib/jelastic/SSL:/etc/nginx/ssl:ro
     depends_on:
       - grafana
+      - alloy
+      - minio
     networks:
       - obs-net
   # ===========================================================================

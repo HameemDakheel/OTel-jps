@@ -89,14 +89,13 @@
         "if [ ! -d .git ]; then git init && git remote add origin ${globals.REPO_URL} && git fetch && git checkout -f main; else git fetch && git reset --hard origin/main; fi",
         "mkdir -p configs/nginx",
         "htpasswd -bc configs/nginx/.htpasswd otlp ${globals.OTLP_KEY}",
-        "echo 'MINIO_ROOT_USER=${globals.MINIO_AK}' > .env",
-        "echo 'MINIO_ROOT_PASSWORD=${globals.MINIO_SK}' >> .env",
-        "echo 'GRAFANA_PASSWORD=${globals.GRAFANA_PW}' >> .env",
+        "cat <<'EOF' > .env\nMINIO_ROOT_USER=${globals.MINIO_AK}\nMINIO_ROOT_PASSWORD=${globals.MINIO_SK}\nGRAFANA_PASSWORD=${globals.GRAFANA_PW}\nEOF",
         "chmod 600 .env",
         "mkdir -p data/grafana && chown -R 472:472 data/grafana",
         "chmod +x scripts/prepare_configs.sh",
         "./scripts/prepare_configs.sh",
-        "docker-compose pull || docker compose pull",
+        "echo 'Versions:' && (docker-compose version || docker compose version)",
+        "docker-compose pull -q || docker compose pull -q",
         "docker-compose up -d --remove-orphans || docker compose up -d --remove-orphans"
       ]
     },

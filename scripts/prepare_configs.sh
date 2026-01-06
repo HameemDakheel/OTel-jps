@@ -12,9 +12,10 @@ if [ -f "$ENV_FILE" ]; then
   echo "Loading environment variables from $ENV_FILE..."
   # Export variables from .env if not already set
   # Using safe export avoiding comments
-  set -a
-  source <(grep -v '^#' "$ENV_FILE" | sed -E 's/^([^=]+)=(.*)$/\1="\2"/')
-  set +a
+  # Export variables from .env manually to avoid shell interpolation of symbols like $
+  # We use grep and cut to get the raw values
+  export MINIO_ROOT_USER=$(grep '^MINIO_ROOT_USER=' "$ENV_FILE" | cut -d'=' -f2-)
+  export MINIO_ROOT_PASSWORD=$(grep '^MINIO_ROOT_PASSWORD=' "$ENV_FILE" | cut -d'=' -f2-)
 else
   echo "Warning: .env file not found. Relying on existing environment variables."
 fi

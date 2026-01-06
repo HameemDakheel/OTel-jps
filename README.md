@@ -62,6 +62,7 @@ A complete observability platform featuring **Loki** (Logs), **Grafana** (Dashbo
 3. Paste: `https://raw.githubusercontent.com/HameemDakheel/OTel-jps/main/manifest.jps`
 4. Click **Install**
 5. Save the credentials from the success popup
+6. **Integration Guide**: See [INTEGRATION.md](INTEGRATION.md) for connecting your DB, LB, and apps.
 
 
 ### Option 2: Local Docker Compose
@@ -89,7 +90,8 @@ Configure your OpenTelemetry-instrumented application with:
 
 ```bash
 # Replace <your-env-domain> with your Jelastic environment URL
-export OTEL_EXPORTER_OTLP_ENDPOINT=http://<your-env-domain>:4317
+export OTEL_EXPORTER_OTLP_ENDPOINT=https://<your-env-domain>/v1/
+export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Basic <base64_encoded_creds>"
 export OTEL_SERVICE_NAME=my-application
 export OTEL_RESOURCE_ATTRIBUTES=deployment.environment=production
 ```
@@ -183,10 +185,10 @@ Then configure Alloy to inject `X-Scope-OrgID` headers.
 
 ## 🔐 Security Notes
 
-1. **Change default passwords** in `.env` before deployment
-2. **Restrict firewall rules** to only allow your application IPs
-3. **Enable TLS** for production deployments
-4. **Never commit** `.env` files to version control
+1. **Change default passwords** in your JPS installation settings.
+2. **Restrict firewall rules** to only allow your application IPs (optional, but recommended).
+3. **Basic Authentication** is enforced by default on ALL ingestion and admin endpoints.
+4. **All traffic** is secured via HTTPS/TLS.
 
 ## 🐛 Troubleshooting
 

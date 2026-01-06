@@ -51,7 +51,7 @@
         "MINIO_AK": "${globals.MINIO_AK}",
         "MINIO_SK": "${globals.MINIO_SK}",
         "GRAFANA_PW": "${globals.GRAFANA_PW}",
-        "JELASTIC_PORTS": "80,443,3000,4317,4318,4319,4320,9000,9001,12345"
+        "JELASTIC_PORTS": "80,443,3000,3100,3200,4317,4318,4319,4320,7946,9000,9001,9096,12345"
       }
     }
   ],
@@ -59,7 +59,6 @@
   "onInstall": [
     { "call": "installDependencies" },
     { "call": "deployStack" },
-    { "call": "setupFirewall" },
     {
       "install": {
         "jps": "https://github.com/jelastic-jps/lets-encrypt/blob/master/manifest.jps",
@@ -98,37 +97,6 @@
       ]
     },
 
-    "setupFirewall": {
-      "script": [
-        "var rules = [",
-        "  { name: 'Grafana UI', ports: '3000' },",
-        "  { name: 'OTLP gRPC', ports: '4317' },",
-        "  { name: 'OTLP HTTP', ports: '4318' },",
-        "  { name: 'MinIO Console', ports: '9001' },",
-        "  { name: 'Alloy UI', ports: '12345' },",
-        "  { name: 'HTTP', ports: '80' },",
-        "  { name: 'HTTPS', ports: '443' }",
-        "];",
-        "for (var i = 0; i < rules.length; i++) {",
-        "  var rule = rules[i];",
-        "  var apiRule = {",
-        "    name: rule.name,",
-        "    ports: rule.ports,",
-        "    protocol: 'TCP',",
-        "    direction: 'INPUT',",
-        "    action: 'ALLOW',",
-        "    isEnabled: true,",
-        "    priority: i + 100,",
-        "    src: 'ALL'",
-        "  };",
-        "  var resp = jelastic.env.security.AddRule({",
-        "    envName: getParam('envName'),",
-        "    session: session,",
-        "    rule: apiRule",
-        "  });",
-        "  if (resp.result != 0) return resp;",
-        "}",
-        "return { result: 0 };"
       ]
     },
 

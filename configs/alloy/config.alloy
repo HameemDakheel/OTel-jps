@@ -98,12 +98,6 @@ otelcol.exporter.otlp "tempo" {
     }
 
     // Retry configuration
-    retry_on_failure {
-      enabled             = true
-      initial_interval    = "1s"
-      max_interval        = "30s"
-      max_elapsed_time    = "5m"
-    }
   }
 }
 

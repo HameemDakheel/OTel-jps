@@ -48,6 +48,9 @@
       "diskLimit": 100,
       "isSLBAccessEnabled": true,
       "env": {
+        "MINIO_AK": "${globals.MINIO_AK}",
+        "MINIO_SK": "${globals.MINIO_SK}",
+        "GRAFANA_PW": "${globals.GRAFANA_PW}",
         "JELASTIC_PORTS": "80,443,3000,4317,4318,4319,4320,9000,9001,12345"
       }
     }

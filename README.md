@@ -52,7 +52,7 @@ A complete observability platform featuring **Loki** (Logs), **Grafana** (Dashbo
 
 1. Go to your Jelastic Dashboard
 2. Click **Import** → **URL**
-3. Paste: `https://raw.githubusercontent.com/YOUR-ORG/jelastic-observability/main/manifest.jps`
+3. Paste: `https://raw.githubusercontent.com/HameemDakheel/OTel-jps/main/manifest.jps`
 4. Click **Install**
 5. Save the credentials from the success popup
 
@@ -61,8 +61,8 @@ A complete observability platform featuring **Loki** (Logs), **Grafana** (Dashbo
 
 ```bash
 # Clone the repository
-git clone https://github.com/YOUR-ORG/jelastic-observability.git
-cd jelastic-observability
+git clone https://github.com/HameemDakheel/OTel-jps.git
+cd OTel-jps
 
 # Copy and edit environment variables
 cp .env.example .env

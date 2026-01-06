@@ -121,7 +121,11 @@
         "    priority: i + 100,",
         "    src: 'ALL'",
         "  };",
-        "  var resp = jelastic.env.security.AddRule(getParam('envName'), session, apiRule);",
+        "  var resp = jelastic.env.security.AddRule({",
+        "    envName: getParam('envName'),",
+        "    session: session,",
+        "    rule: apiRule",
+        "  });",
         "  if (resp.result != 0) return resp;",
         "}",
         "return { result: 0 };"

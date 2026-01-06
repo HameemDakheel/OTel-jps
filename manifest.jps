@@ -97,9 +97,6 @@
       ]
     },
 
-      ]
-    },
-
     "waitForServices": {
       "cmd[cp]": [
         "echo 'Waiting for services to be healthy...'",

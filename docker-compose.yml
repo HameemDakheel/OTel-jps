@@ -60,6 +60,8 @@ services:
       /bin/sh -c "
         mc alias set local http://minio:9000 $${MINIO_ACCESS_KEY} $${MINIO_SECRET_KEY} &&
         mc mb --ignore-existing local/mimir &&
+        mc mb --ignore-existing local/mimir-ruler &&
+        mc mb --ignore-existing local/mimir-alertmanager &&
         mc mb --ignore-existing local/loki &&
         mc mb --ignore-existing local/tempo &&
         mc mb --ignore-existing local/pyroscope &&

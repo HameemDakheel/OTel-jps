@@ -14,6 +14,7 @@
     "MINIO_AK": "${fn.password(20)}",
     "MINIO_SK": "${fn.password(40)}",
     "GRAFANA_PW": "${fn.password(16)}",
+    "OTLP_KEY": "${fn.password(24)}",
     "STACK_PATH": "/opt/observability",
     "REPO_URL": "${settings.repoUrl:https://github.com/HameemDakheel/OTel-jps.git}"
   },
@@ -75,7 +76,7 @@
   "actions": {
     "installDependencies": {
       "cmd[cp]": [
-        "yum install -y git jq gettext || true"
+        "yum install -y git jq gettext httpd-tools || true"
       ]
     },
 
@@ -84,6 +85,8 @@
         "mkdir -p ${globals.STACK_PATH}",
         "mkdir -p /var/lib/jelastic/SSL",
         "if [ ! -f /var/lib/jelastic/SSL/server.crt ]; then openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /var/lib/jelastic/SSL/server.key -out /var/lib/jelastic/SSL/server.crt -subj '/CN=${env.domain}'; fi",
+        "mkdir -p ${globals.STACK_PATH}/configs/nginx",
+        "htpasswd -bc ${globals.STACK_PATH}/configs/nginx/.htpasswd otlp ${globals.OTLP_KEY}",
         "cd ${globals.STACK_PATH}",
         "if [ ! -d .git ]; then git clone ${globals.REPO_URL} . ; else git pull origin main; fi",
         "echo 'MINIO_ACCESS_KEY=${globals.MINIO_AK}' > ${globals.STACK_PATH}/.env",
@@ -137,7 +140,7 @@
   },
 
   "success": {
-    "text": "## 🎉 LGTM+P Stack Ready!\n\n### Access URLs\n- **Grafana**: https://${env.domain}\n- **MinIO Console**: https://${env.domain}/minio/\n- **Alloy UI**: https://${env.domain}/alloy/\n\n### Credentials\n- **Grafana**: admin / `${globals.GRAFANA_PW}`\n- **MinIO Access Key**: `${globals.MINIO_AK}`\n- **MinIO Secret Key**: `${globals.MINIO_SK}`\n\n### OTLP Endpoint (HTTPS)\n- `https://${env.domain}/v1/`",
-    "email": "## 🎉 LGTM+P Stack Ready!\n\n**Grafana**: https://${env.domain}\n**User**: admin\n**Password**: ${globals.GRAFANA_PW}\n\n**MinIO Access Key**: ${globals.MINIO_AK}\n**MinIO Secret Key**: ${globals.MINIO_SK}\n\n**OTLP (HTTPS)**: https://${env.domain}/v1/"
+    "text": "## 🎉 LGTM+P Stack Ready!\n\n### Access URLs\n- **Grafana**: https://${env.domain}\n- **MinIO Console**: https://${env.domain}/minio/\n- **Alloy UI**: https://${env.domain}/alloy/ (User: `otlp` / Pass: `${globals.OTLP_KEY}`)\n\n### Credentials\n- **Grafana**: `admin` / `${globals.GRAFANA_PW}`\n- **OTLP Ingestion (Basic Auth)**: User: `otlp` / Pass: `${globals.OTLP_KEY}`\n- **MinIO Access Key**: `${globals.MINIO_AK}`\n- **MinIO Secret Key**: `${globals.MINIO_SK}`\n\n### OTLP Endpoint (HTTPS)\n- `https://${env.domain}/v1/` (Requires Basic Auth Header)",
+    "email": "## 🎉 LGTM+P Stack Ready!\n\n**Grafana**: https://${env.domain}\n**User**: admin\n**Password**: ${globals.GRAFANA_PW}\n\n**OTLP Ingestion (Basic Auth)**\n**User**: otlp\n**Password**: ${globals.OTLP_KEY}\n\n**MinIO Access Key**: ${globals.MINIO_AK}\n**MinIO Secret Key**: ${globals.MINIO_SK}\n\n**OTLP (HTTPS)**: https://${env.domain}/v1/"
   }
 }

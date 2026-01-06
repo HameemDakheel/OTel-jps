@@ -48,12 +48,21 @@
       "diskLimit": 100,
       "isSLBAccessEnabled": true,
       "env": {
-        "JELASTIC_PORTS": "3000,4317,4318,9000,9001,12345"
+        "JELASTIC_PORTS": "80,443,3000,4317,4318,4319,4320,9000,9001,12345"
       }
     }
   ],
 
   "onInstall": [
+    {
+      "install": {
+        "jps": "https://github.com/jelastic-jps/lets-encrypt/blob/master/manifest.jps",
+        "nodeGroup": "cp",
+        "settings": {
+          "customDomains": "${env.domain}"
+        }
+      }
+    },
     { "call": "installDependencies" },
     { "call": "deployStack" },
     { "call": "setupFirewall" },
@@ -137,6 +146,30 @@
             "rule": {
               "name": "Alloy UI",
               "ports": "12345",
+              "protocol": "TCP",
+              "type": "INBOUND",
+              "enabled": true
+            }
+          }
+        },
+        {
+          "method": "environment.security.addrule",
+          "params": {
+            "rule": {
+              "name": "HTTP",
+              "ports": "80",
+              "protocol": "TCP",
+              "type": "INBOUND",
+              "enabled": true
+            }
+          }
+        },
+        {
+          "method": "environment.security.addrule",
+          "params": {
+            "rule": {
+              "name": "HTTPS",
+              "ports": "443",
               "protocol": "TCP",
               "type": "INBOUND",
               "enabled": true

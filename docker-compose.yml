@@ -4,6 +4,21 @@
 # =============================================================================
 
 services:
+  # --- SSL Gateway (Nginx) ---
+  nginx:
+    image: nginx:latest
+    container_name: nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./configs/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - /var/lib/jelastic/SSL:/etc/nginx/ssl:ro
+    depends_on:
+      - grafana
+    networks:
+      - obs-net
   # ===========================================================================
   # TIER 1: STORAGE LAYER
   # ===========================================================================
@@ -58,6 +73,8 @@ services:
   # ===========================================================================
   # TIER 2: BACKEND LAYER - Observability Databases
   # ===========================================================================
+
+
 
   # --- Metrics (Mimir) ---
   mimir:

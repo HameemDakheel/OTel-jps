@@ -137,7 +137,7 @@
   },
 
   "success": {
-    "text": "## 🎉 LGTM+P Stack Ready!\n\n**Grafana**: [https://${env.domain}](https://${env.domain})\n**MinIO**: [https://${env.domain}/minio/](https://${env.domain}/minio/)\n**Alloy**: [https://${env.domain}/alloy/](https://${env.domain}/alloy/)\n\n**User**: `admin`\n**Password**: `${globals.GRAFANA_PW}`\n\n**OTLP (HTTPS)**: `https://${env.domain}/v1/`",
-    "email": "Stack ready at ${env.domain}"
+    "text": "## 🎉 LGTM+P Stack Ready!\n\n### Access URLs\n- **Grafana**: https://${env.domain}\n- **MinIO Console**: https://${env.domain}/minio/\n- **Alloy UI**: https://${env.domain}/alloy/\n\n### Credentials\n- **Grafana**: admin / `${globals.GRAFANA_PW}`\n- **MinIO Access Key**: `${globals.MINIO_AK}`\n- **MinIO Secret Key**: `${globals.MINIO_SK}`\n\n### OTLP Endpoint (HTTPS)\n- `https://${env.domain}/v1/`",
+    "email": "## 🎉 LGTM+P Stack Ready!\n\n**Grafana**: https://${env.domain}\n**User**: admin\n**Password**: ${globals.GRAFANA_PW}\n\n**MinIO Access Key**: ${globals.MINIO_AK}\n**MinIO Secret Key**: ${globals.MINIO_SK}\n\n**OTLP (HTTPS)**: https://${env.domain}/v1/"
   }
 }

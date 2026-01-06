@@ -13,150 +13,150 @@
 
 name: Deploy to Jelastic
 
-on:
-  push:
-    branches: [ "main" ]
-    paths:
-      - 'configs/**'
-      - 'docker-compose.yml'
-      - 'manifest.jps'
-  workflow_dispatch:
-    inputs:
-      action:
-        description: 'Deployment action'
-        required: true
-        default: 'update'
-        type: choice
-        options:
-          - update
-          - install
+# on:
+#   push:
+#     branches: [ "main" ]
+#     paths:
+#       - 'configs/**'
+#       - 'docker-compose.yml'
+#       - 'manifest.jps'
+#   workflow_dispatch:
+#     inputs:
+#       action:
+#         description: 'Deployment action'
+#         required: true
+#         default: 'update'
+#         type: choice
+#         options:
+#           - update
+#           - install
 
-env:
-  STACK_PATH: /opt/observability
+# env:
+#   STACK_PATH: /opt/observability
 
-jobs:
-  validate:
-    name: Validate Configuration
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+# jobs:
+#   validate:
+#     name: Validate Configuration
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Checkout code
+#         uses: actions/checkout@v4
 
-      - name: Validate Docker Compose
-        run: |
-          docker compose config --quiet
-          echo "✅ docker-compose.yml is valid"
+#       - name: Validate Docker Compose
+#         run: |
+#           docker compose config --quiet
+#           echo "✅ docker-compose.yml is valid"
 
-      - name: Validate YAML configs
-        run: |
-          for file in configs/*.yaml configs/**/*.yaml configs/**/*.yml; do
-            if [ -f "$file" ]; then
-              python3 -c "import yaml; yaml.safe_load(open('$file'))"
-              echo "✅ $file is valid"
-            fi
-          done
+#       - name: Validate YAML configs
+#         run: |
+#           for file in configs/*.yaml configs/**/*.yaml configs/**/*.yml; do
+#             if [ -f "$file" ]; then
+#               python3 -c "import yaml; yaml.safe_load(open('$file'))"
+#               echo "✅ $file is valid"
+#             fi
+#           done
 
-      - name: Validate JPS manifest
-        run: |
-          python3 -c "import json; json.load(open('manifest.jps'))"
-          echo "✅ manifest.jps is valid"
+#       - name: Validate JPS manifest
+#         run: |
+#           python3 -c "import json; json.load(open('manifest.jps'))"
+#           echo "✅ manifest.jps is valid"
 
-  # ===========================================================================
-  # FRESH INSTALL - Use this for first-time deployment
-  # Trigger manually with action: install
-  # ===========================================================================
-  install:
-    name: Install JPS (Fresh Deployment)
-    runs-on: ubuntu-latest
-    needs: validate
-    if: github.event.inputs.action == 'install'
+#   # ===========================================================================
+#   # FRESH INSTALL - Use this for first-time deployment
+#   # Trigger manually with action: install
+#   # ===========================================================================
+#   install:
+#     name: Install JPS (Fresh Deployment)
+#     runs-on: ubuntu-latest
+#     needs: validate
+#     if: github.event.inputs.action == 'install'
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+#     steps:
+#       - name: Checkout code
+#         uses: actions/checkout@v4
 
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
+#       - name: Set up Java
+#         uses: actions/setup-java@v4
+#         with:
+#           distribution: 'temurin'
+#           java-version: '17'
 
-      - name: Install Jelastic CLI
-        run: |
-          curl -s ftp://ftp.jelastic.com/pub/cli/jelastic-cli-installer.sh | bash
+#       - name: Install Jelastic CLI
+#         run: |
+#           curl -s ftp://ftp.jelastic.com/pub/cli/jelastic-cli-installer.sh | bash
 
-      - name: Authenticate with Jelastic
-        run: |
-          yes n | ~/jelastic/users/authentication/signin \
-            --login "${{ secrets.JELASTIC_USERNAME }}" \
-            --password "${{ secrets.JELASTIC_TOKEN }}" \
-            --platformUrl "${{ secrets.JELASTIC_URL }}" || true
+#       - name: Authenticate with Jelastic
+#         run: |
+#           yes n | ~/jelastic/users/authentication/signin \
+#             --login "${{ secrets.JELASTIC_USERNAME }}" \
+#             --password "${{ secrets.JELASTIC_TOKEN }}" \
+#             --platformUrl "${{ secrets.JELASTIC_URL }}" || true
 
-      - name: Install JPS manifest
-        run: |
-          # Get the raw URL of the manifest from this repo
-          JPS_URL="https://raw.githubusercontent.com/${{ github.repository }}/main/manifest.jps"
+#       - name: Install JPS manifest
+#         run: |
+#           # Get the raw URL of the manifest from this repo
+#           JPS_URL="https://raw.githubusercontent.com/${{ github.repository }}/main/manifest.jps"
 
-          ~/jelastic/marketplace/jps/install \
-            --jps "$JPS_URL" \
-            --envName "${{ secrets.JELASTIC_ENV_NAME }}" \
-            --displayName "LGTM Observability Stack" \
-            --skipNodeEmails true
+#           ~/jelastic/marketplace/jps/install \
+#             --jps "$JPS_URL" \
+#             --envName "${{ secrets.JELASTIC_ENV_NAME }}" \
+#             --displayName "LGTM Observability Stack" \
+#             --skipNodeEmails true
 
-          echo "✅ JPS installation complete!"
+#           echo "✅ JPS installation complete!"
 
-  # ===========================================================================
-  # UPDATE - Use this for updating existing deployment
-  # Triggers automatically on push to main
-  # ===========================================================================
-  update:
-    name: Update Existing Deployment
-    runs-on: ubuntu-latest
-    needs: validate
-    if: github.event.inputs.action != 'install'
+#   # ===========================================================================
+#   # UPDATE - Use this for updating existing deployment
+#   # Triggers automatically on push to main
+#   # ===========================================================================
+#   update:
+#     name: Update Existing Deployment
+#     runs-on: ubuntu-latest
+#     needs: validate
+#     if: github.event.inputs.action != 'install'
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+#     steps:
+#       - name: Checkout code
+#         uses: actions/checkout@v4
 
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
+#       - name: Set up Java
+#         uses: actions/setup-java@v4
+#         with:
+#           distribution: 'temurin'
+#           java-version: '17'
 
-      - name: Install Jelastic CLI
-        run: |
-          curl -s ftp://ftp.jelastic.com/pub/cli/jelastic-cli-installer.sh | bash
+#       - name: Install Jelastic CLI
+#         run: |
+#           curl -s ftp://ftp.jelastic.com/pub/cli/jelastic-cli-installer.sh | bash
 
-      - name: Authenticate with Jelastic
-        run: |
-          yes n | ~/jelastic/users/authentication/signin \
-            --login "${{ secrets.JELASTIC_USERNAME }}" \
-            --password "${{ secrets.JELASTIC_TOKEN }}" \
-            --platformUrl "${{ secrets.JELASTIC_URL }}" || true
+#       - name: Authenticate with Jelastic
+#         run: |
+#           yes n | ~/jelastic/users/authentication/signin \
+#             --login "${{ secrets.JELASTIC_USERNAME }}" \
+#             --password "${{ secrets.JELASTIC_TOKEN }}" \
+#             --platformUrl "${{ secrets.JELASTIC_URL }}" || true
 
-      - name: Pull latest code on Jelastic
-        run: |
-          ~/jelastic/environment/control/execCmdByGroup \
-            --envName "${{ secrets.JELASTIC_ENV_NAME }}" \
-            --nodeGroup cp \
-            --commandList '[{"command":"cd /opt/observability && git pull origin main"}]'
+#       - name: Pull latest code on Jelastic
+#         run: |
+#           ~/jelastic/environment/control/execCmdByGroup \
+#             --envName "${{ secrets.JELASTIC_ENV_NAME }}" \
+#             --nodeGroup cp \
+#             --commandList '[{"command":"cd /opt/observability && git pull origin main"}]'
 
-      - name: Restart Docker Compose stack
-        run: |
-          ~/jelastic/environment/control/execCmdByGroup \
-            --envName "${{ secrets.JELASTIC_ENV_NAME }}" \
-            --nodeGroup cp \
-            --commandList '[{"command":"cd /opt/observability && docker compose pull && docker compose up -d --remove-orphans"}]'
+#       - name: Restart Docker Compose stack
+#         run: |
+#           ~/jelastic/environment/control/execCmdByGroup \
+#             --envName "${{ secrets.JELASTIC_ENV_NAME }}" \
+#             --nodeGroup cp \
+#             --commandList '[{"command":"cd /opt/observability && docker compose pull && docker compose up -d --remove-orphans"}]'
 
-      - name: Wait for services
-        run: sleep 30
+#       - name: Wait for services
+#         run: sleep 30
 
-      - name: Health check
-        run: |
-          ~/jelastic/environment/control/execCmdByGroup \
-            --envName "${{ secrets.JELASTIC_ENV_NAME }}" \
-            --nodeGroup cp \
-            --commandList '[{"command":"docker compose -f /opt/observability/docker-compose.yml ps"}]'
-          echo "✅ Deployment update complete!"
+#       - name: Health check
+#         run: |
+#           ~/jelastic/environment/control/execCmdByGroup \
+#             --envName "${{ secrets.JELASTIC_ENV_NAME }}" \
+#             --nodeGroup cp \
+#             --commandList '[{"command":"docker compose -f /opt/observability/docker-compose.yml ps"}]'
+#           echo "✅ Deployment update complete!"

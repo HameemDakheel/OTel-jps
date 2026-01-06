@@ -38,8 +38,8 @@ services:
         minio server /data --console-address ':9001'
       "
     environment:
-      - MINIO_ROOT_USER=${MINIO_ACCESS_KEY}
-      - MINIO_ROOT_PASSWORD=${MINIO_SECRET_KEY}
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
     volumes:
       - minio_data:/data
     ports:
@@ -73,8 +73,8 @@ services:
         exit 0
       "
     environment:
-      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
-      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
     networks:
       - obs-net
 
@@ -95,8 +95,8 @@ services:
       - ./configs/mimir.yaml:/etc/mimir/mimir.yaml:ro
       - mimir_data:/data
     environment:
-      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
-      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER}
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD}
     ports:
       - "9009:8080"   # HTTP API (mapped to 9009 to avoid conflicts)
     networks:
@@ -120,8 +120,8 @@ services:
       - ./configs/loki.yaml:/etc/loki/loki.yaml:ro
       - loki_data:/loki
     environment:
-      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
-      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER}
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD}
     ports:
       - "3100:3100"   # HTTP API
     networks:
@@ -145,8 +145,8 @@ services:
       - ./configs/tempo.yaml:/etc/tempo/tempo.yaml:ro
       - tempo_data:/var/tempo
     environment:
-      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
-      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER}
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD}
     ports:
       - "3200:3200"   # HTTP API
       - "4317:4317"   # OTLP gRPC (for direct ingestion)
@@ -173,8 +173,8 @@ services:
       - ./configs/pyroscope.yaml:/etc/pyroscope/pyroscope.yaml:ro
       - pyroscope_data:/data
     environment:
-      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
-      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER}
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD}
     ports:
       - "4040:4040"   # HTTP API
     networks:
@@ -236,10 +236,19 @@ services:
     networks:
       - obs-net
     depends_on:
-      - loki
-      - mimir
-      - tempo
-      - pyroscope
+      loki:
+        condition: service_healthy
+      mimir:
+        condition: service_healthy
+      tempo:
+        condition: service_healthy
+      pyroscope:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 # =============================================================================
 # VOLUMES - Persistent Storage

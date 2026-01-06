@@ -20,8 +20,8 @@ else
 fi
 
 # Validate Required variables
-if [ -z "$MINIO_ACCESS_KEY" ] || [ -z "$MINIO_SECRET_KEY" ]; then
-    echo "Error: MINIO_ACCESS_KEY or MINIO_SECRET_KEY are missing!"
+if [ -z "$MINIO_ROOT_USER" ] || [ -z "$MINIO_ROOT_PASSWORD" ]; then
+    echo "Error: MINIO_ROOT_USER or MINIO_ROOT_PASSWORD are missing!"
     exit 1
 fi
 
@@ -30,7 +30,7 @@ echo "Substituting variables in configuration files..."
 # List of files to process
 FILES="configs/loki.yaml configs/mimir.yaml configs/tempo.yaml configs/pyroscope.yaml"
 # Variables to substitution (space separated list of $VAR)
-VARS='$MINIO_ACCESS_KEY $MINIO_SECRET_KEY'
+VARS='$MINIO_ROOT_USER $MINIO_ROOT_PASSWORD'
 
 for file in $FILES; do
   if [ -f "$file" ]; then

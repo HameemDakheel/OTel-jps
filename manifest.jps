@@ -110,6 +110,10 @@
         "curl -sf http://localhost:3000/api/health || echo 'Grafana not ready yet'",
         "echo 'Checking Mimir...'",
         "curl -sf http://localhost:9009/ready || echo 'Mimir not ready yet'",
+        "echo 'Checking Pyroscope...'",
+        "curl -sf http://localhost:4040/ready || echo 'Pyroscope not ready yet'",
+        "echo 'Checking Alloy...'",
+        "curl -sf http://localhost:12345/ || echo 'Alloy not ready yet'",
         "echo 'Deployment complete!'"
       ]
     },

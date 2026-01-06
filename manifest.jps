@@ -24,7 +24,7 @@
         "name": "repoUrl",
         "caption": "Git Repository URL",
         "type": "string",
-        "default": "https://github.com/your-org/jelastic-observability.git",
+        "default": "https://github.com/HameemDakheel/OTel-jps.git",
         "required": true
       },
       {
@@ -83,7 +83,8 @@
     "deployStack": {
       "cmd[cp]": [
         "mkdir -p ${globals.STACK_PATH}",
-        "cd ${globals.STACK_PATH} && (git clone ${globals.REPO_URL} . 2>/dev/null || git pull origin main)",
+        "cd ${globals.STACK_PATH}",
+        "if [ ! -d .git ]; then git clone ${globals.REPO_URL} . ; else git pull origin main; fi",
         "echo 'MINIO_ACCESS_KEY=${globals.MINIO_AK}' > ${globals.STACK_PATH}/.env",
         "echo 'MINIO_SECRET_KEY=${globals.MINIO_SK}' >> ${globals.STACK_PATH}/.env",
         "echo 'GRAFANA_PASSWORD=${globals.GRAFANA_PW}' >> ${globals.STACK_PATH}/.env",

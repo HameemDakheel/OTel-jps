@@ -99,91 +99,32 @@
     },
 
     "setupFirewall": {
-      "api": [
-        {
-          "method": "environment.security.addrule",
-          "params": {
-            "rule": {
-              "name": "Grafana UI",
-              "ports": "3000",
-              "protocol": "TCP",
-              "type": "INBOUND",
-              "enabled": true
-            }
-          }
-        },
-        {
-          "method": "environment.security.addrule",
-          "params": {
-            "rule": {
-              "name": "OTLP gRPC",
-              "ports": "4317",
-              "protocol": "TCP",
-              "type": "INBOUND",
-              "enabled": true
-            }
-          }
-        },
-        {
-          "method": "environment.security.addrule",
-          "params": {
-            "rule": {
-              "name": "OTLP HTTP",
-              "ports": "4318",
-              "protocol": "TCP",
-              "type": "INBOUND",
-              "enabled": true
-            }
-          }
-        },
-        {
-          "method": "environment.security.addrule",
-          "params": {
-            "rule": {
-              "name": "MinIO Console",
-              "ports": "9001",
-              "protocol": "TCP",
-              "type": "INBOUND",
-              "enabled": true
-            }
-          }
-        },
-        {
-          "method": "environment.security.addrule",
-          "params": {
-            "rule": {
-              "name": "Alloy UI",
-              "ports": "12345",
-              "protocol": "TCP",
-              "type": "INBOUND",
-              "enabled": true
-            }
-          }
-        },
-        {
-          "method": "environment.security.addrule",
-          "params": {
-            "rule": {
-              "name": "HTTP",
-              "ports": "80",
-              "protocol": "TCP",
-              "type": "INBOUND",
-              "enabled": true
-            }
-          }
-        },
-        {
-          "method": "environment.security.addrule",
-          "params": {
-            "rule": {
-              "name": "HTTPS",
-              "ports": "443",
-              "protocol": "TCP",
-              "type": "INBOUND",
-              "enabled": true
-            }
-          }
-        }
+      "script": [
+        "var rules = [",
+        "  { name: 'Grafana UI', ports: '3000' },",
+        "  { name: 'OTLP gRPC', ports: '4317' },",
+        "  { name: 'OTLP HTTP', ports: '4318' },",
+        "  { name: 'MinIO Console', ports: '9001' },",
+        "  { name: 'Alloy UI', ports: '12345' },",
+        "  { name: 'HTTP', ports: '80' },",
+        "  { name: 'HTTPS', ports: '443' }",
+        "];",
+        "for (var i = 0; i < rules.length; i++) {",
+        "  var rule = rules[i];",
+        "  var apiRule = {",
+        "    name: rule.name,",
+        "    ports: rule.ports,",
+        "    protocol: 'TCP',",
+        "    direction: 'INPUT',",
+        "    action: 'ALLOW',",
+        "    isEnabled: true,",
+        "    priority: i + 100,",
+        "    src: 'ALL'",
+        "  };",
+        "  var resp = jelastic.env.security.AddRule(getParam('envName'), session, apiRule);",
+        "  if (resp.result != 0) return resp;",
+        "}",
+        "return { result: 0 };"
       ]
     },
 

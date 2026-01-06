@@ -83,7 +83,7 @@
       "cmd[cp]": [
         "mkdir -p ${globals.STACK_PATH}",
         "mkdir -p /var/lib/jelastic/SSL",
-        "if [ ! -f /var/lib/jelastic/SSL/server.crt ]; then openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /var/lib/jelastic/SSL/server.key -out /var/lib/jelastic/SSL/server.crt -subj '/CN=localhost'; fi",
+        "if [ ! -f /var/lib/jelastic/SSL/server.crt ]; then openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /var/lib/jelastic/SSL/server.key -out /var/lib/jelastic/SSL/server.crt -subj '/CN=${env.domain}'; fi",
         "cd ${globals.STACK_PATH}",
         "if [ ! -d .git ]; then git clone ${globals.REPO_URL} . ; else git pull origin main; fi",
         "echo 'MINIO_ACCESS_KEY=${globals.MINIO_AK}' > ${globals.STACK_PATH}/.env",
@@ -137,7 +137,7 @@
   },
 
   "success": {
-    "text": "## 🎉 LGTM+P Stack Deployed Successfully!\n\n### Access Points\n\n| Service | URL |\n|---------|-----|\n| **Grafana Dashboard** | [http://${env.domain}:3000](http://${env.domain}:3000) |\n| **MinIO Console** | [http://${env.domain}:9001](http://${env.domain}:9001) |\n| **Alloy Pipeline UI** | [http://${env.domain}:12345](http://${env.domain}:12345) |\n\n### Credentials\n\n| Service | Username | Password |\n|---------|----------|----------|\n| Grafana | `admin` | `${globals.GRAFANA_PW}` |\n| MinIO | `${globals.MINIO_AK}` | `${globals.MINIO_SK}` |\n\n### OTLP Endpoints for Your Applications\n\n```bash\n# gRPC (recommended)\nOTEL_EXPORTER_OTLP_ENDPOINT=http://${env.domain}:4317\n\n# HTTP\nOTEL_EXPORTER_OTLP_ENDPOINT=http://${env.domain}:4318\n```\n\n### Quick Test\n\n```bash\n# Send test trace\ncurl -X POST http://${env.domain}:4318/v1/traces \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"resourceSpans\":[]}'\n```\n\n**Note:** Save these credentials securely. They cannot be retrieved later.",
-    "email": "Your LGTM+P observability stack is ready!\n\nGrafana: http://${env.domain}:3000\nUser: admin\nPassword: ${globals.GRAFANA_PW}\n\nOTLP Endpoint: http://${env.domain}:4317"
+    "text": "## 🎉 LGTM+P Stack Ready!\n\n**Grafana**: [https://${env.domain}](https://${env.domain})\n**MinIO**: [https://${env.domain}/minio/](https://${env.domain}/minio/)\n**Alloy**: [https://${env.domain}/alloy/](https://${env.domain}/alloy/)\n\n**User**: `admin`\n**Password**: `${globals.GRAFANA_PW}`\n\n**OTLP (HTTPS)**: `https://${env.domain}/v1/`",
+    "email": "Stack ready at ${env.domain}"
   }
 }

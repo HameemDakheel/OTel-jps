@@ -1,4 +1,0 @@
-yes n | ~/jelastic/users/authentication/signin \
-  --login "h.dakheel@email.ly" \
-  --password "76223c8c3d6f4e5f8c0e0536869c633b381eb4cf" \
-  --platformUrl "app.libyanspider.cloud"

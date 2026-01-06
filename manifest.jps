@@ -62,7 +62,8 @@
         "jps": "https://github.com/jelastic-jps/lets-encrypt/blob/master/manifest.jps",
         "nodeGroup": "cp",
         "settings": {
-          "customDomains": "${env.domain}"
+          "customDomains": "${env.domain}",
+          "deployHook": "docker restart nginx"
         }
       }
     },
@@ -75,7 +76,7 @@
   "actions": {
     "installDependencies": {
       "cmd[cp]": [
-        "yum install -y git jq || true"
+        "yum install -y git jq gettext || true"
       ]
     },
 
@@ -88,8 +89,11 @@
         "echo 'GRAFANA_PASSWORD=${globals.GRAFANA_PW}' >> ${globals.STACK_PATH}/.env",
         "chmod 600 ${globals.STACK_PATH}/.env",
         "mkdir -p ${globals.STACK_PATH}/data/grafana && chown -R 472:472 ${globals.STACK_PATH}/data/grafana",
-        "cd ${globals.STACK_PATH} && docker compose pull",
-        "cd ${globals.STACK_PATH} && docker compose up -d"
+        "cd ${globals.STACK_PATH}",
+        "chmod +x scripts/prepare_configs.sh",
+        "./scripts/prepare_configs.sh",
+        "docker compose pull",
+        "docker compose up -d --remove-orphans"
       ]
     },
 

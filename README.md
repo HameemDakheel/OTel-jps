@@ -56,6 +56,7 @@ A complete observability platform featuring **Loki** (Logs), **Grafana** (Dashbo
 4. Click **Install**
 5. Save the credentials from the success popup
 
+
 ### Option 2: Local Docker Compose
 
 ```bash

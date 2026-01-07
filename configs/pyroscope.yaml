@@ -33,6 +33,7 @@ storage:
     bucket_name: pyroscope
     access_key_id: ${MINIO_ROOT_USER}
     secret_access_key: ${MINIO_ROOT_PASSWORD}
+    s3_force_path_style: true
     insecure: true
 
 # Ingester configuration
@@ -69,6 +70,6 @@ store_gateway:
       store: inmemory
 
 # Limits configuration
-limits:
+limits_config:
   max_query_length: 24h
   max_query_lookback: 744h  # 31 days

@@ -28,6 +28,7 @@ common:
       secret_access_key: ${MINIO_ROOT_PASSWORD}
       insecure: true
       bucket_name: mimir
+      s3_force_path_style: true
 
 # Blocks storage (long-term TSDB blocks)
 blocks_storage:
@@ -38,6 +39,7 @@ blocks_storage:
     secret_access_key: ${MINIO_ROOT_PASSWORD}
     insecure: true
     bucket_name: mimir
+    s3_force_path_style: true
   bucket_store:
     sync_dir: /data/tsdb-sync
   tsdb:
@@ -81,6 +83,7 @@ ruler_storage:
     secret_access_key: ${MINIO_ROOT_PASSWORD}
     insecure: true
     bucket_name: mimir
+    s3_force_path_style: true
 
 # Alertmanager storage
 alertmanager_storage:
@@ -91,9 +94,10 @@ alertmanager_storage:
     secret_access_key: ${MINIO_ROOT_PASSWORD}
     insecure: true
     bucket_name: mimir
+    s3_force_path_style: true
 
 # Limits configuration
-limits:
+limits_config:
   # Ingestion limits
   ingestion_rate: 100000
   ingestion_burst_size: 200000

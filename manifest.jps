@@ -105,7 +105,7 @@
     "waitForServices": {
       "cmd[cp]": [
         "echo 'Waiting for services to be healthy...'",
-        "sleep 30",
+        "sleep 60",
         "cd ${globals.STACK_PATH} && (docker-compose ps || docker compose ps)",
         "echo 'Checking Grafana...'",
         "curl -sf http://localhost:3000/api/health || echo 'Grafana not ready yet'",

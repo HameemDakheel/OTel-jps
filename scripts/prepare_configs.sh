@@ -4,6 +4,7 @@
 # This ensures that credentials from .env are correctly propagated to the backend service configurations.
 
 set -e
+set -x
 
 # Path to .env file (assume script runs from project root)
 ENV_FILE=./.env

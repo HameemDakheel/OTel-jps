@@ -82,7 +82,7 @@ ruler_storage:
     access_key_id: ${MINIO_ROOT_USER}
     secret_access_key: ${MINIO_ROOT_PASSWORD}
     insecure: true
-    bucket_name: mimir
+    bucket_name: mimir-ruler
     bucket_lookup_type: path
 
 # Alertmanager storage
@@ -93,7 +93,7 @@ alertmanager_storage:
     access_key_id: ${MINIO_ROOT_USER}
     secret_access_key: ${MINIO_ROOT_PASSWORD}
     insecure: true
-    bucket_name: mimir
+    bucket_name: mimir-alertmanager
     bucket_lookup_type: path
 
 

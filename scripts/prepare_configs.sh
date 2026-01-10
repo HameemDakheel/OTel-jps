@@ -15,8 +15,8 @@ if [ -f "$ENV_FILE" ]; then
   # Using safe export avoiding comments
   # Export variables from .env manually to avoid shell interpolation of symbols like $
   # We use grep and cut to get the raw values
-  export MINIO_ROOT_USER=$(grep '^MINIO_ROOT_USER=' "$ENV_FILE" | cut -d'=' -f2-)
-  export MINIO_ROOT_PASSWORD=$(grep '^MINIO_ROOT_PASSWORD=' "$ENV_FILE" | cut -d'=' -f2-)
+  export MINIO_ROOT_USER=$(awk -F= '/^MINIO_ROOT_USER=/{print $2}' "$ENV_FILE")
+  export MINIO_ROOT_PASSWORD=$(awk -F= '/^MINIO_ROOT_PASSWORD=/{print $2}' "$ENV_FILE")
 else
   echo "Warning: .env file not found. Relying on existing environment variables."
 fi

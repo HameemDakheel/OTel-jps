@@ -132,6 +132,15 @@
         "cd ${globals.STACK_PATH}",
         "docker-compose logs --tail=100 || docker compose logs --tail=100"
       ]
+    },
+    "checkStack": {
+      "cmd[cp]": [
+        "cd ${globals.STACK_PATH}",
+        "echo '--- CONTAINER STATUS ---'",
+        "docker-compose ps || docker compose ps",
+        "echo '--- RECENT LOGS ---'",
+        "docker-compose logs --tail=20 || docker compose logs --tail=20"
+      ]
     }
   },
 

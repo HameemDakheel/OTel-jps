@@ -33,7 +33,7 @@ storage:
     bucket_name: pyroscope
     access_key_id: ${MINIO_ROOT_USER}
     secret_access_key: ${MINIO_ROOT_PASSWORD}
-    s3forcepathstyle: true
+    force_path_style: true
     insecure: true
 
 # Ingester configuration

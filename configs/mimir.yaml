@@ -28,7 +28,7 @@ common:
       secret_access_key: ${MINIO_ROOT_PASSWORD}
       insecure: true
       bucket_name: mimir
-      s3forcepathstyle: true
+      force_path_style: true
 
 # Blocks storage (long-term TSDB blocks)
 blocks_storage:

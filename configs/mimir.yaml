@@ -39,7 +39,7 @@ blocks_storage:
     secret_access_key: ${MINIO_ROOT_PASSWORD}
     insecure: true
     bucket_name: mimir
-    s3_force_path_style: true
+    force_path_style: true
   bucket_store:
     sync_dir: /data/tsdb-sync
   tsdb:
@@ -83,7 +83,7 @@ ruler_storage:
     secret_access_key: ${MINIO_ROOT_PASSWORD}
     insecure: true
     bucket_name: mimir
-    s3_force_path_style: true
+    force_path_style: true
 
 # Alertmanager storage
 alertmanager_storage:
@@ -94,7 +94,7 @@ alertmanager_storage:
     secret_access_key: ${MINIO_ROOT_PASSWORD}
     insecure: true
     bucket_name: mimir
-    s3_force_path_style: true
+    force_path_style: true
 
 # Limits configuration
 limits_config:

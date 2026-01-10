@@ -90,7 +90,7 @@
         "./scripts/prepare_configs.sh",
         "echo 'Versions:' && (docker-compose version || docker compose version)",
         "docker-compose pull -q || docker compose pull -q",
-        "docker-compose up -d --remove-orphans || docker compose up -d --remove-orphans"
+        "(docker-compose up -d --remove-orphans || docker compose up -d --remove-orphans) || (echo '--- START ERROR LOGS ---' && (docker-compose logs --tail 100 || docker compose logs --tail 100) && echo '--- END ERROR LOGS ---' && exit 1)"
       ]
     },
 

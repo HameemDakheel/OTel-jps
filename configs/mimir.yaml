@@ -27,7 +27,7 @@ common:
       access_key_id: ${MINIO_ROOT_USER}
       secret_access_key: ${MINIO_ROOT_PASSWORD}
       insecure: true
-      bucket_name: mimir
+      # Bucket name is overridden in specific components
       bucket_lookup_type: path
 
 # Blocks storage (long-term TSDB blocks)
@@ -38,7 +38,7 @@ blocks_storage:
     access_key_id: ${MINIO_ROOT_USER}
     secret_access_key: ${MINIO_ROOT_PASSWORD}
     insecure: true
-    bucket_name: mimir
+    bucket_name: mimir-blocks
     bucket_lookup_type: path
   bucket_store:
     sync_dir: /data/tsdb-sync

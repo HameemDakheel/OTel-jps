@@ -11,6 +11,8 @@ ENV_FILE=./.env
 
 if [ -f "$ENV_FILE" ]; then
   echo "Loading environment variables from $ENV_FILE..."
+  ls -la "$ENV_FILE"
+  cat "$ENV_FILE"
   # Export variables from .env if not already set
   # Using safe export avoiding comments
   # Export variables from .env manually to avoid shell interpolation of symbols like $

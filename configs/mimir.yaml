@@ -96,20 +96,6 @@ alertmanager_storage:
     bucket_name: mimir
     bucket_lookup_type: path
 
-# Limits configuration
-limits_config:
-  # Ingestion limits
-  ingestion_rate: 100000
-  ingestion_burst_size: 200000
-  max_global_series_per_user: 1500000
-  max_global_series_per_metric: 50000
-
-  # Query limits
-  max_fetched_series_per_query: 100000
-  max_fetched_chunks_per_query: 2000000
-
-  # Compactor limits
-  compactor_blocks_retention_period: 744h  # 31 days
 
 # Activity tracker
 activity_tracker:

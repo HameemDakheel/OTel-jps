@@ -29,9 +29,9 @@ fi
 echo "Substituting variables in configuration files..."
 
 # List of files to process
-FILES="configs/loki.yaml configs/mimir.yaml configs/tempo.yaml configs/pyroscope.yaml"
+FILES="configs/loki.yaml configs/mimir.yaml configs/tempo.yaml configs/pyroscope.yaml configs/nginx/nginx.conf"
 # Variables to substitution (space separated list of $VAR)
-VARS='$MINIO_ROOT_USER $MINIO_ROOT_PASSWORD'
+VARS='$MINIO_ROOT_USER $MINIO_ROOT_PASSWORD $DOMAIN'
 
 for file in $FILES; do
   if [ -f "$file" ]; then

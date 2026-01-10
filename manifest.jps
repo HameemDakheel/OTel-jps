@@ -60,16 +60,6 @@
   "onInstall": [
     { "call": "installDependencies" },
     { "call": "deployStack" },
-    {
-      "install": {
-        "jps": "https://raw.githubusercontent.com/jelastic-jps/lets-encrypt/master/manifest.jps",
-        "nodeGroup": "cp",
-        "settings": {
-          "customDomains": "${env.domain}",
-          "deployHook": "docker restart nginx"
-        }
-      }
-    },
     { "call": "waitForServices" }
   ],
 
@@ -83,15 +73,17 @@
     "deployStack": {
       "cmd[cp]": [
         "mkdir -p ${globals.STACK_PATH}",
-        "mkdir -p /var/lib/jelastic/SSL",
-        "if [ ! -f /var/lib/jelastic/SSL/server.crt ]; then openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /var/lib/jelastic/SSL/server.key -out /var/lib/jelastic/SSL/server.crt -subj '/CN=${env.domain}'; fi",
         "cd ${globals.STACK_PATH}",
         "if [ ! -d .git ]; then git init && git remote add origin ${globals.REPO_URL} && git fetch && git checkout -f main; else git fetch && git reset --hard origin/main; fi",
+        "mkdir -p data/certs/live/${env.domain}",
+        "if [ ! -f data/certs/live/${env.domain}/fullchain.pem ]; then openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout data/certs/live/${env.domain}/privkey.pem -out data/certs/live/${env.domain}/fullchain.pem -subj '/CN=${env.domain}'; fi",
         "mkdir -p configs/nginx",
         "htpasswd -bc configs/nginx/.htpasswd otlp ${globals.OTLP_KEY}",
         "echo \"MINIO_ROOT_USER=${globals.MINIO_AK}\" > .env",
         "echo \"MINIO_ROOT_PASSWORD=${globals.MINIO_SK}\" >> .env",
         "echo \"GRAFANA_PASSWORD=${globals.GRAFANA_PW}\" >> .env",
+        "echo \"DOMAIN=${env.domain}\" >> .env",
+        "echo \"SSL_EMAIL=admin@${env.domain}\" >> .env",
         "chmod 600 .env",
         "mkdir -p data/grafana && chown -R 472:472 data/grafana",
         "chmod +x scripts/prepare_configs.sh",

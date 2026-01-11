@@ -104,7 +104,7 @@
     },
     "requestCert": {
       "cmd[cp]": [
-        "echo 'Requesting Let/\\'s Encrypt Certificate...'",
+        "echo \"Requesting Lets Encrypt Certificate...\"",
         "cd ${globals.STACK_PATH}",
         "(docker-compose run --rm certbot certonly --webroot --webroot-path=/var/www/certbot --email ${settings.sslEmail} --agree-tos --no-eff-email -d ${env.domain} || docker compose run --rm certbot certonly --webroot --webroot-path=/var/www/certbot --email ${settings.sslEmail} --agree-tos --no-eff-email -d ${env.domain})",
         "(docker-compose restart nginx || docker compose restart nginx)"

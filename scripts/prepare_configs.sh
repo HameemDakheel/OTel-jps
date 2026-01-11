@@ -4,21 +4,21 @@
 # This ensures that credentials from .env are correctly propagated to the backend service configurations.
 
 set -e
-set -x
+
 
 # Path to .env file (assume script runs from project root)
 ENV_FILE=./.env
 
 if [ -f "$ENV_FILE" ]; then
   echo "Loading environment variables from $ENV_FILE..."
-  ls -la "$ENV_FILE"
-  cat "$ENV_FILE"
+  echo "Loading environment variables from $ENV_FILE..."
   # Export variables from .env if not already set
   # Using safe export avoiding comments
   # Export variables from .env manually to avoid shell interpolation of symbols like $
   # We use grep and cut to get the raw values
   export MINIO_ROOT_USER=$(awk -F= '/^MINIO_ROOT_USER=/{print $2}' "$ENV_FILE")
   export MINIO_ROOT_PASSWORD=$(awk -F= '/^MINIO_ROOT_PASSWORD=/{print $2}' "$ENV_FILE")
+  export DOMAIN=$(awk -F= '/^DOMAIN=/{print $2}' "$ENV_FILE")
 else
   echo "Warning: .env file not found. Relying on existing environment variables."
 fi

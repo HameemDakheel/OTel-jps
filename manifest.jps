@@ -1,6 +1,6 @@
 {
   "jpsType": "install",
-  "jpsVersion": "1.3",
+  "jpsVersion": "1.7",
   "name": "Grafana LGTM+P Stack (Production Ready)",
   "id": "lgtm-stack",
   "version": "1.0.0",
@@ -145,7 +145,7 @@
   },
 
   "success": {
-    "text": "## 🎉 LGTM+P Stack Ready!\n\n### Access URLs\n- **Grafana**: https://${env.domain}\n- **MinIO Console**: https://${env.domain}/minio/\n- **Alloy UI**: https://${env.domain}/alloy/ (User: `otlp` / Pass: `${globals.OTLP_KEY}`)\n\n### Credentials\n- **Grafana**: `admin` / `${globals.GRAFANA_PW}`\n- **OTLP Ingestion (Basic Auth)**: User: `otlp` / Pass: `${globals.OTLP_KEY}`\n- **MinIO Access Key**: `${globals.MINIO_AK}`\n- **MinIO Secret Key**: `${globals.MINIO_SK}`\n\n### OTLP Endpoint (HTTPS)\n- `https://${env.domain}/v1/` (Requires Basic Auth Header)",
-    "email": "## 🎉 LGTM+P Stack Ready!\n\n**Grafana**: https://${env.domain}\n**User**: admin\n**Password**: ${globals.GRAFANA_PW}\n\n**OTLP Ingestion (Basic Auth)**\n**User**: otlp\n**Password**: ${globals.OTLP_KEY}\n\n**MinIO Access Key**: ${globals.MINIO_AK}\n**MinIO Secret Key**: ${globals.MINIO_SK}\n\n**OTLP (HTTPS)**: https://${env.domain}/v1/"
+    "text": "## LGTM+P Stack Ready!\n\n### Access URLs\n- **Grafana**: https://${env.domain}\n- **MinIO Console**: https://${env.domain}/minio/\n- **Alloy UI**: https://${env.domain}/alloy/ (User: `otlp` / Pass: `${globals.OTLP_KEY}`)\n\n### Credentials\n- **Grafana**: `admin` / `${globals.GRAFANA_PW}`\n- **OTLP Ingestion (Basic Auth)**: User: `otlp` / Pass: `${globals.OTLP_KEY}`\n- **MinIO Access Key**: `${globals.MINIO_AK}`\n- **MinIO Secret Key**: `${globals.MINIO_SK}`\n\n### OTLP Endpoint (HTTPS)\n- `https://${env.domain}/v1/` (Requires Basic Auth Header)",
+    "email": "## LGTM+P Stack Ready!\n\n**Grafana**: https://${env.domain}\n**User**: admin\n**Password**: ${globals.GRAFANA_PW}\n\n**OTLP Ingestion (Basic Auth)**\n**User**: otlp\n**Password**: `${globals.OTLP_KEY}`\n\n**MinIO Access Key**: `${globals.MINIO_AK}`\n**MinIO Secret Key**: `${globals.MINIO_SK}`\n\n**OTLP (HTTPS)**: https://${env.domain}/v1/"
   }
 }

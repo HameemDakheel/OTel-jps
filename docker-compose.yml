@@ -18,7 +18,7 @@ services:
       grafana:
         condition: service_healthy
       alloy:
-        condition: service_healthy
+        condition: service_started
       minio:
         condition: service_healthy
     networks:
@@ -213,11 +213,8 @@ services:
         condition: service_healthy
       pyroscope:
         condition: service_started
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:12345/"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+# Healthcheck removed due to distroless image limitations (no wget)
+
 
   # --- Visualization (Grafana) ---
   grafana:

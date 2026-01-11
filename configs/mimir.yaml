@@ -45,14 +45,12 @@ ruler_storage:
   backend: s3
   s3:
     bucket_name: mimir-ruler
-    prefix: ruler/
 
 # CORRECTED: Added prefix for alertmanager isolation.
 alertmanager_storage:
   backend: s3
   s3:
     bucket_name: mimir-alertmanager
-    prefix: alertmanager/
 
 ingester:
   ring:

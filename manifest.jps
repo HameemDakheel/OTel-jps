@@ -34,6 +34,13 @@
         "type": "string",
         "default": "observability",
         "required": true
+      },
+      {
+        "name": "sslEmail",
+        "caption": "SSL Email",
+        "type": "string",
+        "default": "admin@${env.domain}",
+        "required": true
       }
     ]
   },
@@ -47,6 +54,7 @@
       "cloudlets": 32,
       "fixedCloudlets": 8,
       "diskLimit": 100,
+      "ssl": true,
       "isSLBAccessEnabled": true,
       "env": {
         "MINIO_AK": "${globals.MINIO_AK}",
@@ -60,6 +68,7 @@
   "onInstall": [
     { "call": "installDependencies" },
     { "call": "deployStack" },
+    { "call": "requestCert" },
     { "call": "waitForServices" }
   ],
 
@@ -91,6 +100,14 @@
         "echo 'Versions:' && (docker-compose version || docker compose version)",
         "docker-compose pull -q || docker compose pull -q",
         "(docker-compose up -d --remove-orphans || docker compose up -d --remove-orphans) || (echo '--- START ERROR LOGS ---' && (docker-compose logs --tail 200 || docker compose logs --tail 200) && echo '--- END ERROR LOGS ---' && echo '--- CONTAINER STATUS ---' && (docker-compose ps -a || docker compose ps -a) && exit 1)"
+      ]
+    },
+    "requestCert": {
+      "cmd[cp]": [
+        "echo 'Requesting Let/\\'s Encrypt Certificate...'",
+        "cd ${globals.STACK_PATH}",
+        "(docker-compose run --rm certbot certonly --webroot --webroot-path=/var/www/certbot --email ${settings.sslEmail} --agree-tos --no-eff-email -d ${env.domain} || docker compose run --rm certbot certonly --webroot --webroot-path=/var/www/certbot --email ${settings.sslEmail} --agree-tos --no-eff-email -d ${env.domain})",
+        "(docker-compose restart nginx || docker compose restart nginx)"
       ]
     },
 

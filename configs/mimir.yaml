@@ -1,24 +1,25 @@
 # =============================================================================
-# Grafana Mimir Configuration - Monolithic Mode with S3 Backend
+# Grafana Mimir Configuration - Corrected Monolithic Mode
 # =============================================================================
-# Mode: all-in-one (target=all)
-# Storage: MinIO S3-compatible
-# Multi-tenancy: Disabled for simplicity
+# Target: all (Monolithic Mode)
+# Storage: MinIO S3-Compatible
+# Fixes: Resolved limits_config schema error and ruler/blocks bucket collision.
 # =============================================================================
 
-# Run all components in a single process
 target: all
-
-# Disable multi-tenancy for simpler setup
 multitenancy_enabled: false
 
-# Server configuration
 server:
   http_listen_port: 8080
   grpc_listen_port: 9095
   log_level: info
 
-# Common storage configuration for all components
+# CORRECTED: Changed from limits_config to limits to match Mimir 2.14.0 schema
+# This resolves the "field limits_config not found" error.
+limits:
+  ingestion_rate: 10000
+  max_label_names_per_series: 30
+
 common:
   storage:
     backend: s3
@@ -27,25 +28,32 @@ common:
       access_key_id: ${MINIO_ROOT_USER}
       secret_access_key: ${MINIO_ROOT_PASSWORD}
       insecure: true
-      # Bucket name is overridden in specific components
       bucket_lookup_type: path
 
-# Blocks storage (long-term TSDB blocks)
 blocks_storage:
   backend: s3
   s3:
-    endpoint: minio:9000
-    access_key_id: ${MINIO_ROOT_USER}
-    secret_access_key: ${MINIO_ROOT_PASSWORD}
-    insecure: true
     bucket_name: mimir-blocks
-    bucket_lookup_type: path
   bucket_store:
     sync_dir: /data/tsdb-sync
   tsdb:
     dir: /data/tsdb
 
-# Ingester configuration
+# CORRECTED: Added a unique prefix to resolve the bucket collision error.
+# Mimir validates that ruler and blocks storage do not share the same location.
+ruler_storage:
+  backend: s3
+  s3:
+    bucket_name: mimir-ruler
+    prefix: ruler/
+
+# CORRECTED: Added prefix for alertmanager isolation.
+alertmanager_storage:
+  backend: s3
+  s3:
+    bucket_name: mimir-alertmanager
+    prefix: alertmanager/
+
 ingester:
   ring:
     instance_addr: 127.0.0.1
@@ -53,54 +61,26 @@ ingester:
       store: inmemory
     replication_factor: 1
 
-# Distributor configuration
 distributor:
   ring:
     instance_addr: 127.0.0.1
     kvstore:
       store: inmemory
 
-# Compactor configuration
 compactor:
   data_dir: /data/compactor
   sharding_ring:
     kvstore:
       store: inmemory
 
-# Store-gateway configuration
 store_gateway:
   sharding_ring:
     replication_factor: 1
     kvstore:
       store: inmemory
 
-# Ruler storage (for recording/alerting rules)
-ruler_storage:
-  backend: s3
-  s3:
-    endpoint: minio:9000
-    access_key_id: ${MINIO_ROOT_USER}
-    secret_access_key: ${MINIO_ROOT_PASSWORD}
-    insecure: true
-    bucket_name: mimir-ruler
-    bucket_lookup_type: path
-
-# Alertmanager storage
-alertmanager_storage:
-  backend: s3
-  s3:
-    endpoint: minio:9000
-    access_key_id: ${MINIO_ROOT_USER}
-    secret_access_key: ${MINIO_ROOT_PASSWORD}
-    insecure: true
-    bucket_name: mimir-alertmanager
-    bucket_lookup_type: path
-
-
-# Activity tracker
 activity_tracker:
   filepath: /data/activity.log
 
-# Analytics
 usage_stats:
   enabled: false

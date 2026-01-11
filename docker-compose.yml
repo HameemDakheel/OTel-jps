@@ -67,7 +67,6 @@ services:
         mc mb --ignore-existing local/loki &&
         mc mb --ignore-existing local/tempo &&
         mc mb --ignore-existing local/pyroscope &&
-        echo 'Buckets created successfully' &&
         exit 0
       "
     environment:
@@ -171,8 +170,12 @@ services:
       - ./configs/pyroscope.yaml:/etc/pyroscope/pyroscope.yaml:ro
       - pyroscope_data:/data
     environment:
+      # These must match the keys used in your .yaml files
       - MINIO_ACCESS_KEY=${MINIO_ROOT_USER}
       - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD}
+      # Also pass these in directly if your yaml uses these names
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
     ports:
       - "4040:4040"   # HTTP API
     networks:

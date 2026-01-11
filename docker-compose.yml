@@ -101,12 +101,6 @@ services:
     depends_on:
       minio-init:
         condition: service_completed_successfully
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/ready"]
-      interval: 15s
-      timeout: 10s
-      retries: 10
-      start_period: 30s
 
   # --- Logs (Loki) ---
   loki:
@@ -185,12 +179,8 @@ services:
     depends_on:
       minio-init:
         condition: service_completed_successfully
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:4040/ready"]
-      interval: 15s
-      timeout: 10s
-      retries: 10
-      start_period: 30s
+# Healthcheck removed due to distroless image limitations (no wget)
+
 
   # ===========================================================================
   # TIER 3: GATEWAY LAYER - Telemetry Collection & Visualization
@@ -215,10 +205,14 @@ services:
     networks:
       - obs-net
     depends_on:
-      - loki
-      - mimir
-      - tempo
-      - pyroscope
+      loki:
+        condition: service_healthy
+      mimir:
+        condition: service_started
+      tempo:
+        condition: service_healthy
+      pyroscope:
+        condition: service_started
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:12345/"]
       interval: 10s
@@ -248,11 +242,11 @@ services:
       loki:
         condition: service_healthy
       mimir:
-        condition: service_healthy
+        condition: service_started
       tempo:
         condition: service_healthy
       pyroscope:
-        condition: service_healthy
+        condition: service_started
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
       interval: 10s

@@ -32,13 +32,19 @@ cd obstack
 cp .env.example .env
 ```
 
-Open `.env` in your editor. You only need to change three things to get started:
+Open `.env` in your editor. You need to change four things to get started:
 
 ```dotenv
-DOMAIN=localhost                    # leave as-is for local dev; set to your real domain in prod
-GRAFANA_ADMIN_PASSWORD=changeme     # change to anything
-BASIC_AUTH_HASH=...                 # generated in step 2
+DOMAIN=localhost                              # leave as-is for local dev; set to your real domain in prod
+GRAFANA_ADMIN_PASSWORD=changeme               # change to anything
+BASIC_AUTH_HASH=...                           # generated in step 2
+ALERT_WEBHOOK_URL=https://example.invalid/alert   # your real Slack/Discord/PagerDuty webhook — see below
 ```
+
+**Don't skip `ALERT_WEBHOOK_URL`.** Its default value is a placeholder that accepts every alert
+and delivers none of them — no error, no bounce, nothing. A stack left on this default looks
+completely healthy while every alert silently disappears. `make verify` (Step 4) checks for this
+default specifically and will fail until you replace it with a real webhook URL.
 
 ---
 
@@ -87,12 +93,17 @@ Expected output:
   PASS tempo
   PASS pyroscope
   PASS grafana
+  PASS alert-webhook (configured)
 
-── 7 passed, 0 failed ─────────────────────────
+── 8 passed, 0 failed ─────────────────────────
 ✅ All checks passed.
 ```
 
-If anything fails, see [Troubleshooting](operations/troubleshooting.md).
+If you skipped setting `ALERT_WEBHOOK_URL` in Step 1, the last line reads
+`FAIL alert-webhook (ALERT_WEBHOOK_URL is unset or still the placeholder — every alert will fire
+into a void)` and the script exits non-zero — go back and set it, then re-run `make verify`.
+
+If anything else fails, see [Troubleshooting](operations/troubleshooting.md).
 
 ---
 
@@ -174,5 +185,6 @@ make clean               # stops the stack AND deletes all telemetry data (inter
 | Grafana login fails | Password mismatch in `.env` | Check `GRAFANA_ADMIN_PASSWORD`, restart Grafana |
 | OTLP requests get 401 | Basic auth header wrong | Re-encode `username:password` as base64; ensure `Authorization: Basic <base64>` header |
 | `make verify` reports OTLP test fails | Basic auth hash doesn't match plaintext | Re-generate hash with the password you're using |
+| `make verify` reports `FAIL alert-webhook` | `ALERT_WEBHOOK_URL` in `.env` is unset or still `https://example.invalid/alert` | Set it to a real Slack/Discord/PagerDuty webhook URL, then re-run `make verify` — every alert is silently going nowhere until you do |
 
 For more, see the [full troubleshooting guide](operations/troubleshooting.md).

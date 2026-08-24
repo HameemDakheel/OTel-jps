@@ -65,6 +65,23 @@ for name in otel-collector prometheus victorialogs tempo pyroscope grafana; do
   fi
 done
 
+# A "verified" stack that still routes every alert into a void is not
+# actually verified — this was the same failure class as a real incident
+# this stack's own operator already had once on Grafana Cloud: every alert
+# routed to a placeholder address for months and reached nobody. The
+# contact-points.yaml default IS the placeholder below
+# (configs/grafana/provisioning/alerting/contact-points.yaml), and nothing
+# checked whether a deployment ever left it there. This check does.
+ALERT_WEBHOOK_PLACEHOLDER="https://example.invalid/alert"
+ALERT_WEBHOOK_URL="${ALERT_WEBHOOK_URL:-$ALERT_WEBHOOK_PLACEHOLDER}"
+if [[ "$ALERT_WEBHOOK_URL" == "$ALERT_WEBHOOK_PLACEHOLDER" || -z "$ALERT_WEBHOOK_URL" ]]; then
+  RESULTS+=("FAIL alert-webhook (ALERT_WEBHOOK_URL is unset or still the placeholder — every alert will fire into a void)")
+  FAIL=$((FAIL+1))
+else
+  RESULTS+=("PASS alert-webhook (configured)")
+  PASS=$((PASS+1))
+fi
+
 printf '\n'
 for r in "${RESULTS[@]}"; do
   echo "  $r"

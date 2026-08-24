@@ -40,6 +40,10 @@ cp .env.example .env
 docker run --rm caddy:2-alpine caddy hash-password --plaintext 'YOUR_PASSWORD'
 # (paste output into .env as BASIC_AUTH_HASH)
 
+# Set ALERT_WEBHOOK_URL in .env to a real Slack/Discord/PagerDuty webhook.
+# Its default value routes every alert nowhere, silently — `make verify`
+# checks this and will fail until it's set to something real.
+
 make simple
 make verify
 ```

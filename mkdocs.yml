@@ -80,6 +80,8 @@ nav:
           - Service down: operations/runbooks/service-down.md
           - Cert renewal: operations/runbooks/cert-renewal.md
           - High cardinality: operations/runbooks/high-cardinality.md
+  - Integrations:
+      - Grafana MCP (AI assistants): integrations/mcp.md
   - Reference:
       - Environment variables: reference/env-vars.md
       - Ports: reference/ports.md

@@ -70,9 +70,22 @@ exporters:
     tls:
       insecure: true
 
-  # NOTE: profiles export to Pyroscope is wired in Phase 2 (Stack Polish).
-  # Reason: OTel Collector contrib's profiles signal is still maturing; we keep
-  # Phase 1 strictly to the stable receivers/exporters to ensure the stack boots.
+  # Continuous profiling deliberately does NOT go through this collector.
+  # Confirmed 2026-08-24 (Grafana's own Go client docs): pyroscope-go pushes
+  # directly to Pyroscope's own HTTP ingest API — it was never going to
+  # arrive here as OTLP. The OTel Collector's own profiles signal IS a real,
+  # separate path (an otlp_grpc exporter to Pyroscope, gated behind
+  # --feature-gates=service.profilesSupport upstream), but Grafana's docs
+  # describe it as still under active development with breaking changes —
+  # this file previously said "wired in Phase 2... still maturing" about
+  # that collector-mediated path, and that reasoning was directionally
+  # right, but no Phase ever actually gave applications ANY way to send a
+  # profile, collector-mediated or not: Pyroscope's port had no public route
+  # at all until configs/caddy/Caddyfile's :4040 block (2026-08-24). Fixed
+  # by exposing Pyroscope's stable direct-push API instead of waiting on the
+  # experimental collector path. See that Caddyfile block's own comment for
+  # the full reasoning, including why it's a dedicated port and not a
+  # /pyroscope/* prefix under the main site.
 
   debug:
     verbosity: basic

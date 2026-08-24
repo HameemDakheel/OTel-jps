@@ -124,6 +124,75 @@ Browse the full list: <https://github.com/open-telemetry/opentelemetry-go-contri
 
 ---
 
+## Continuous profiling (Pyroscope)
+
+Profiling is a **separate library and a separate endpoint** from everything above — `pyroscope-go`,
+not the OTel SDK, pushing to obstack's dedicated `:4040` port, not `:4317`/`:4318`. Do not expect
+`OTEL_EXPORTER_OTLP_*` env vars to affect this at all; they don't.
+
+> Verified end-to-end 2026-08-24: a real `pyroscope-go` client pushed a CPU profile through this
+> exact route, and the profile was independently confirmed both by querying Pyroscope directly and
+> by querying it through Grafana's own Pyroscope datasource (`configs/grafana/provisioning/datasources/all.yaml`,
+> `uid: pyroscope`) — 32 real Go runtime stack frames, non-zero tick count, both queries returning
+> identical data.
+
+### Step 1 — Add the dependency
+
+```bash
+go get github.com/grafana/pyroscope-go
+```
+
+### Step 2 — Start the profiler at process startup
+
+```go
+import "github.com/grafana/pyroscope-go"
+
+profiler, err := pyroscope.Start(pyroscope.Config{
+    ApplicationName:   "my-go-app",
+    ServerAddress:     "https://<DOMAIN>:4040",
+    BasicAuthUser:     "ingest",       // from your .env's BASIC_AUTH_USER
+    BasicAuthPassword: "YOUR_PASSWORD", // the plaintext password, NOT the bcrypt hash in .env
+    ProfileTypes: []pyroscope.ProfileType{
+        pyroscope.ProfileCPU,
+        pyroscope.ProfileAllocObjects,
+        pyroscope.ProfileAllocSpace,
+        pyroscope.ProfileInuseObjects,
+        pyroscope.ProfileInuseSpace,
+    },
+})
+if err != nil {
+    log.Fatal(err)
+}
+defer profiler.Stop()
+```
+
+Nothing else in your program needs to change — the profiler runs in the background for the life of
+the process once started.
+
+### Step 3 — Verify in Grafana
+
+Open Grafana → **Explore** → datasource: **Pyroscope** → select `my-go-app` under Application. A
+flame graph appears within roughly a minute of the process starting.
+
+If you'd rather verify from the command line first:
+
+```bash
+curl -u ingest:YOUR_PASSWORD \
+  "https://<DOMAIN>:4040/pyroscope/render?query=process_cpu:cpu:nanoseconds:cpu:nanoseconds%7Bservice_name%3D%22my-go-app%22%7D&from=now-5m&until=now&format=json"
+```
+
+A response with a populated `flamebearer.names` array and a non-zero `numTicks` means the push
+worked. An empty array after a minute or more usually means the profiler never started
+successfully — check the error returned by `pyroscope.Start`, which this snippet already does.
+
+### Why this is a dedicated port, not `https://<DOMAIN>/pyroscope`
+
+`BasicAuthUser`/`BasicAuthPassword` are the exact config field names — confirmed against Grafana's
+own client docs and by a real successful push. The `ServerAddress` you set here becomes the literal
+base URL the client posts to; obstack routes it straight through on its own Caddy port rather than
+under a path prefix on the main site, specifically to avoid a `handle` vs `handle_path` prefix
+mismatch — see `configs/caddy/Caddyfile`'s own comment on the `:4040` block for the full reasoning.
+
 ## Common pitfalls
 
 - **TLS verify with self-signed cert** — `otlptracehttp.New(ctx, otlptracehttp.WithInsecure())` for plain HTTP, OR provide a custom client with `otlptracehttp.WithTLSClientConfig(&tls.Config{InsecureSkipVerify: true})` for dev. **Don't use either in production** — point at a real domain.

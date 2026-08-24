@@ -41,6 +41,37 @@
     }
 }
 
+# Pyroscope continuous-profiling ingest, dedicated port (basic auth required).
+#
+# Deliberately a separate port, not a /pyroscope/* path prefix under the main
+# site block above — mirrors the :4317 block immediately above this one,
+# which already proves the pattern in this file. A path-prefix route would
+# need to choose between `handle` (preserve the prefix) and `handle_path`
+# (strip it), and getting that choice wrong is exactly the class of bug that
+# shipped in the /v1/* block once already (see its own comment). Pyroscope's
+# own HTTP API has no concept of a mounted sub-path — it expects requests at
+# its bare root paths — so a prefix route would need `handle_path` to strip
+# it before forwarding, the OPPOSITE of what /v1/* needs. A dedicated port
+# sidesteps that decision entirely: nothing to strip or preserve.
+#
+# pyroscope-go's client config natively supports this — set
+# ServerAddress: "https://<DOMAIN>:4040" plus BasicAuthUser/BasicAuthPassword
+# (confirmed against Grafana's own Go client docs, 2026-08-24). No OTel
+# Collector involvement needed or expected: profiles push directly from the
+# instrumented process to Pyroscope's own ingest API, same as this stack's
+# upstream Pyroscope always intended. The OTel Collector's own profiles
+# signal is a SEPARATE, still-experimental path (behind a
+# --feature-gates=service.profilesSupport flag upstream, "active development
+# with breaking changes" per Grafana's docs) — not what this route or the
+# collector config's own comment should be describing. See
+# configs/otel-collector/config.yaml's corrected comment.
+:4040 {
+    basic_auth {
+        {$BASIC_AUTH_USER:ingest} {$BASIC_AUTH_HASH:$2a$14$1234567890123456789012abcdefghijklmnopqrstuvwxyzABCDEFGHIJ}
+    }
+    reverse_proxy pyroscope:4040
+}
+
 # Internal Docker hostname site (for in-network clients like examples/otel-demo).
 # Forces internal self-signed cert (no ACME) and reuses the same auth + routing.
 caddy, obstack-caddy {

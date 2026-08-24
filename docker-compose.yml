@@ -210,6 +210,20 @@ services:
       GF_FEATURE_TOGGLES_ENABLE: traceToProfiles tracesEmbeddedFlameGraph
       GF_SERVER_ROOT_URL: ${GF_SERVER_ROOT_URL:-https://${DOMAIN:-localhost}/}
       ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-https://example.invalid/alert}
+      # Email alerting (added alongside the webhook path — see
+      # configs/grafana/provisioning/alerting/contact-points.yaml for which one is
+      # actually the default receiver). Grafana's own SMTP client env vars, passed
+      # through unchanged so any provider works — Microsoft 365, Gmail, SES, etc.
+      # SMTP_ENABLED defaults to false so an obstack deployment with no SMTP_* set
+      # doesn't try to connect anywhere and fail loudly on every alert.
+      GF_SMTP_ENABLED: ${SMTP_ENABLED:-false}
+      GF_SMTP_HOST: ${SMTP_HOST:-smtp.office365.com:587}
+      GF_SMTP_USER: ${SMTP_USER:-}
+      GF_SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      GF_SMTP_FROM_ADDRESS: ${SMTP_FROM_ADDRESS:-alerts@example.invalid}
+      GF_SMTP_FROM_NAME: ${SMTP_FROM_NAME:-obstack Alerts}
+      GF_SMTP_STARTTLS_POLICY: ${SMTP_STARTTLS_POLICY:-MandatoryStartTLS}
+      ALERT_EMAIL_ADDRESSES: ${ALERT_EMAIL_ADDRESSES:-alerts@example.invalid}
     expose:
       - "3000"
     healthcheck:

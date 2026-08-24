@@ -1,6 +1,12 @@
 apiVersion: 1
 
 contactPoints:
+  # Two delivery mechanisms, both defined — pick which one is live by editing
+  # notification-policies.yaml's `receiver:` field, not by deleting either of
+  # these. Both are inert (send nowhere real) until their own env vars are set:
+  # default-webhook needs ALERT_WEBHOOK_URL; default-email needs SMTP_ENABLED=true
+  # plus the SMTP_* vars and ALERT_EMAIL_ADDRESSES. scripts/verify_stack.sh checks
+  # for whichever one notification-policies.yaml actually routes to.
   - orgId: 1
     name: default-webhook
     receivers:
@@ -10,6 +16,16 @@ contactPoints:
           url: $ALERT_WEBHOOK_URL
           httpMethod: POST
           maxAlerts: 0
+        disableResolveMessage: false
+
+  - orgId: 1
+    name: default-email
+    receivers:
+      - uid: default-email
+        type: email
+        settings:
+          addresses: $ALERT_EMAIL_ADDRESSES
+          singleEmail: false
         disableResolveMessage: false
 
   - orgId: 1

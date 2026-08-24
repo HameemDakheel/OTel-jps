@@ -73,27 +73,54 @@ done
 # (configs/grafana/provisioning/alerting/contact-points.yaml), and nothing
 # checked whether a deployment ever left it there. This check does.
 #
-# Reads the value from the LIVE Grafana container's own environment, not
-# from a local .env file — confirmed necessary, not stylistic: this script
-# does not source .env, and neither does `make verify`, so a first version
-# of this check that read a plain shell variable FAILED PERMANENTLY even
-# with a genuinely correct ALERT_WEBHOOK_URL sitting in .env, because that
-# value never reaches this script's process environment the normal,
-# documented way a user runs `make verify`. Proved directly: added a
-# real-looking webhook URL to .env, ran `make verify` exactly as
-# quickstart.md's Step 4 documents, and it still reported the placeholder
-# failure. Reading the running container's actual env is also strictly
-# more correct than reading the file even once fixed: it reflects what's
-# actually deployed, not what a local .env says, which can drift if
-# someone edits .env without recreating the grafana container.
+# Reads values from the LIVE Grafana container's own environment, not from a
+# local .env file — confirmed necessary, not stylistic: this script does not
+# source .env, and neither does `make verify`, so a first version of this
+# check that read a plain shell variable FAILED PERMANENTLY even with a
+# genuinely correct ALERT_WEBHOOK_URL sitting in .env, because that value
+# never reaches this script's process environment the normal, documented way
+# a user runs `make verify`. Proved directly: added a real-looking webhook
+# URL to .env, ran `make verify` exactly as quickstart.md's Step 4 documents,
+# and it still reported the placeholder failure. Reading the running
+# container's actual env is also strictly more correct than reading the file
+# even once fixed: it reflects what's actually deployed, not what a local
+# .env says, which can drift if someone edits .env without recreating the
+# grafana container.
+#
+# Two delivery mechanisms exist (contact-points.yaml: default-webhook and
+# default-email — see that file's own header comment), and
+# notification-policies.yaml decides which one is actually live. Checking
+# ONLY the webhook path would repeat the exact false-negative bug already
+# found and fixed once in this same check (see git history): a deployment
+# correctly configured for email alone would FAIL this check forever, having
+# done nothing wrong. So this checks BOTH and passes if EITHER is genuinely
+# configured — it doesn't need to know which one notification-policies.yaml
+# is actually routing to; if the operator picked one and left the other at
+# its placeholder, this correctly reports the one they picked.
 ALERT_WEBHOOK_PLACEHOLDER="https://example.invalid/alert"
 ALERT_WEBHOOK_URL="$(docker exec obstack-grafana printenv ALERT_WEBHOOK_URL 2>/dev/null || true)"
-if [[ "$ALERT_WEBHOOK_URL" == "$ALERT_WEBHOOK_PLACEHOLDER" || -z "$ALERT_WEBHOOK_URL" ]]; then
-  RESULTS+=("FAIL alert-webhook (ALERT_WEBHOOK_URL is unset or still the placeholder — every alert will fire into a void)")
-  FAIL=$((FAIL+1))
-else
-  RESULTS+=("PASS alert-webhook (configured)")
+webhook_configured=false
+if [[ -n "$ALERT_WEBHOOK_URL" && "$ALERT_WEBHOOK_URL" != "$ALERT_WEBHOOK_PLACEHOLDER" ]]; then
+  webhook_configured=true
+fi
+
+SMTP_ENABLED="$(docker exec obstack-grafana printenv GF_SMTP_ENABLED 2>/dev/null || true)"
+ALERT_EMAIL_ADDRESSES="$(docker exec obstack-grafana printenv ALERT_EMAIL_ADDRESSES 2>/dev/null || true)"
+EMAIL_PLACEHOLDER="alerts@example.invalid"
+email_configured=false
+if [[ "$SMTP_ENABLED" == "true" && -n "$ALERT_EMAIL_ADDRESSES" && "$ALERT_EMAIL_ADDRESSES" != "$EMAIL_PLACEHOLDER" ]]; then
+  email_configured=true
+fi
+
+if [[ "$webhook_configured" == true || "$email_configured" == true ]]; then
+  detail=""
+  [[ "$webhook_configured" == true ]] && detail="webhook"
+  [[ "$email_configured" == true ]] && detail="${detail:+$detail, }email"
+  RESULTS+=("PASS alert-webhook (configured: $detail)")
   PASS=$((PASS+1))
+else
+  RESULTS+=("FAIL alert-webhook (neither ALERT_WEBHOOK_URL nor SMTP email is configured — every alert will fire into a void)")
+  FAIL=$((FAIL+1))
 fi
 
 printf '\n'

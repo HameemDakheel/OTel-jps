@@ -83,7 +83,13 @@ docker exec obstack-caddy wget -qO- 'http://prometheus:9090/api/v1/rules' | grep
 Default routing in [`configs/grafana/provisioning/alerting/notification-policies.yaml`](https://github.com/HameemDakheel/obstack/blob/main/configs/grafana/provisioning/alerting/notification-policies.yaml):
 
 - `severity = info` → blackhole receiver (silently dropped)
-- everything else → `default-webhook` (configurable via `ALERT_WEBHOOK_URL` env var)
+- everything else → the receiver named in `notification-policies.yaml`'s `receiver:` field.
+  Two contact points are always defined
+  (`configs/grafana/provisioning/alerting/contact-points.yaml`) — `default-webhook`
+  (`ALERT_WEBHOOK_URL`) and `default-email` (SMTP, via `SMTP_ENABLED`/`SMTP_*`/
+  `ALERT_EMAIL_ADDRESSES`) — switching between them is a one-line edit to `receiver:`, not a
+  rebuild. Whichever one is picked still needs its own env vars set for real, or `make verify`'s
+  `alert-webhook` check fails.
 
 Group settings:
 - `group_by: [alertname, severity]`

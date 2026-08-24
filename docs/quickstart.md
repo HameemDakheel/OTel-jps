@@ -41,10 +41,15 @@ BASIC_AUTH_HASH=...                           # generated in step 2
 ALERT_WEBHOOK_URL=https://example.invalid/alert   # your real Slack/Discord/PagerDuty webhook — see below
 ```
 
-**Don't skip `ALERT_WEBHOOK_URL`.** Its default value is a placeholder that accepts every alert
-and delivers none of them — no error, no bounce, nothing. A stack left on this default looks
-completely healthy while every alert silently disappears. `make verify` (Step 4) checks for this
-default specifically and will fail until you replace it with a real webhook URL.
+**Don't skip alert delivery.** obstack ships two ways to get notified — a webhook
+(`ALERT_WEBHOOK_URL`, above) or email via SMTP (`SMTP_ENABLED` and the `SMTP_*`/
+`ALERT_EMAIL_ADDRESSES` vars, also in `.env.example`) — and both default to placeholders that
+accept every alert and deliver none of them, no error, no bounce, nothing. A stack left on
+either default looks completely healthy while every alert silently disappears. `make verify`
+(Step 4) checks whether *either* mechanism is genuinely configured and fails until at least one
+is. Which one actually gets used is set in
+`configs/grafana/provisioning/alerting/notification-policies.yaml`'s `receiver:` line — the
+repo ships with `default-webhook`; switch it to `default-email` if you're using SMTP instead.
 
 ---
 
@@ -99,9 +104,10 @@ Expected output:
 ✅ All checks passed.
 ```
 
-If you skipped setting `ALERT_WEBHOOK_URL` in Step 1, the last line reads
-`FAIL alert-webhook (ALERT_WEBHOOK_URL is unset or still the placeholder — every alert will fire
-into a void)` and the script exits non-zero — go back and set it, then re-run `make verify`.
+If you skipped alert delivery in Step 1, the last line reads
+`FAIL alert-webhook (neither ALERT_WEBHOOK_URL nor SMTP email is configured — every alert will
+fire into a void)` and the script exits non-zero — go back and set up webhook or email delivery,
+then re-run `make verify`.
 
 If anything else fails, see [Troubleshooting](operations/troubleshooting.md).
 
@@ -185,6 +191,6 @@ make clean               # stops the stack AND deletes all telemetry data (inter
 | Grafana login fails | Password mismatch in `.env` | Check `GRAFANA_ADMIN_PASSWORD`, restart Grafana |
 | OTLP requests get 401 | Basic auth header wrong | Re-encode `username:password` as base64; ensure `Authorization: Basic <base64>` header |
 | `make verify` reports OTLP test fails | Basic auth hash doesn't match plaintext | Re-generate hash with the password you're using |
-| `make verify` reports `FAIL alert-webhook` | `ALERT_WEBHOOK_URL` in `.env` is unset or still `https://example.invalid/alert` | Set it to a real Slack/Discord/PagerDuty webhook URL, then re-run `make verify` — every alert is silently going nowhere until you do |
+| `make verify` reports `FAIL alert-webhook` | Neither `ALERT_WEBHOOK_URL` nor SMTP email (`SMTP_ENABLED`/`SMTP_*`/`ALERT_EMAIL_ADDRESSES`) in `.env` is genuinely configured | Set up one of the two (see `.env.example`'s "Alerting" section), make sure `notification-policies.yaml`'s `receiver:` matches which one you picked, then re-run `make verify` — every alert is silently going nowhere until you do |
 
 For more, see the [full troubleshooting guide](operations/troubleshooting.md).

@@ -40,9 +40,12 @@ cp .env.example .env
 docker run --rm caddy:2-alpine caddy hash-password --plaintext 'YOUR_PASSWORD'
 # (paste output into .env as BASIC_AUTH_HASH)
 
-# Set ALERT_WEBHOOK_URL in .env to a real Slack/Discord/PagerDuty webhook.
-# Its default value routes every alert nowhere, silently — `make verify`
-# checks this and will fail until it's set to something real.
+# Set up alert delivery in .env — either ALERT_WEBHOOK_URL (a real
+# Slack/Discord/PagerDuty webhook) or SMTP email (SMTP_ENABLED + SMTP_*
+# + ALERT_EMAIL_ADDRESSES), then match notification-policies.yaml's
+# receiver: to whichever you picked. Left on the defaults, every alert
+# routes nowhere, silently — `make verify` checks this and will fail
+# until one is set to something real.
 
 make simple
 make verify

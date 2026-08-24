@@ -68,7 +68,14 @@ jobs:
           BASIC_AUTH_HASH: 'placeholder-bcrypt-hash-only-for-config-render'
         run: |
           docker compose -f docker-compose.yml -f compose/simple.yml config --quiet
-          docker compose -f docker-compose.yml -f compose/simple.yml -f compose/otel-demo.yml config --quiet
+          docker compose -f docker-compose.yml -f compose/standard.yml config --quiet
+          # compose/otel-demo.yml was removed in 809fa61 ("remove old internal-network demo
+          # overlay, replaced by examples/otel-demo/ in v1.1") — this merge check was never
+          # updated to match, and has been referencing a deleted file since. The demo now runs
+          # via its own compose project (examples/otel-demo/, driven by scripts/demo-up.sh and
+          # the Makefile's demo-up target), which is a separate, self-contained compose
+          # invocation with its own env files — not a profile overlay on the base stack — so
+          # there is nothing to merge-check here. Fixed 2026-08-24.
 
       - name: Validate Caddyfile
         run: |
@@ -82,8 +89,14 @@ jobs:
 
       - name: Validate Prometheus alert rules
         run: |
+          set -e
           docker run --rm -v "$PWD/alerts:/etc/prometheus/rules:ro" \
             --entrypoint promtool prom/prometheus:v3.0.1 check rules /etc/prometheus/rules/default-rules.yaml
+          for f in alerts/optional/*.yaml; do
+            echo "Validating $f"
+            docker run --rm -v "$PWD/alerts:/etc/prometheus/rules:ro" \
+              --entrypoint promtool prom/prometheus:v3.0.1 check rules "/etc/prometheus/rules/optional/$(basename "$f")"
+          done
 
       - name: Validate bash scripts (syntax)
         run: |

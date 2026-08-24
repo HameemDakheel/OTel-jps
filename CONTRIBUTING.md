@@ -65,9 +65,9 @@ Open Grafana at <https://localhost/> (admin / from your `.env`).
 | `alerts/default-rules.yaml` | Alerts loaded by default in every profile. |
 | `alerts/optional/<pack>.yaml` | Drop-in alert packs for specific exporters. |
 | `examples/` | Standalone reference workloads (currently `otel-demo/`). |
-| `scripts/` | Helper scripts (`verify_stack.sh`, `demo-up.sh`, `init_buckets.sh`, `prepare_configs.sh`). |
-| `docs/` | MkDocs source. Strict build (`make docs-build`) must pass with no warnings. |
-| `manifest.jps` | Jelastic one-click installer manifest (JSON, not YAML). |
+| `scripts/` | Helper scripts (`verify_stack.sh`, `demo-up.sh`). `init_buckets.sh` and `prepare_configs.sh` were removed 2026-08-23 — both were MinIO-era leftovers, unreferenced anywhere and (`prepare_configs.sh`) incapable of running against the current `.env` shape at all. See `docs/superpowers/plans/2026-08-23-rum-alerting-mcp-hardening.md`, Task 1. |
+| `docs/` | MkDocs source. Strict build (`mkdocs build --strict`, run in CI by `.github/workflows/validate.yml`) must pass with no warnings — there is no `make docs-build` target. |
+| `templates/jelastic/manifest.jps` | Jelastic one-click installer manifest (JSON, not YAML) — **not** at repo root. |
 
 ---
 

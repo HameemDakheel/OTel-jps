@@ -3,7 +3,7 @@
   "jpsVersion": "1.7",
   "name": "obstack — Production observability for your $20/month VPS",
   "id": "obstack",
-  "version": "1.0.0-alpha.4",
+  "version": "1.2.0",
   "logo": "https://raw.githubusercontent.com/HameemDakheel/obstack/main/assets/logo.png",
   "description": "OpenTelemetry-native observability stack: Prometheus, VictoriaLogs, Tempo, Pyroscope, Grafana, OTel Collector, Caddy. ~310 MB idle. All 5 signals on a 4 GB VPS.",
   "homepage": "https://github.com/HameemDakheel/obstack",
@@ -16,7 +16,7 @@
     "BASIC_AUTH_PW": "${fn.password(24)}",
     "STACK_PATH": "/opt/obstack",
     "REPO_URL": "${settings.repoUrl:https://github.com/HameemDakheel/obstack.git}",
-    "REPO_REF": "${settings.repoRef:v1.0.0-alpha.4}"
+    "REPO_REF": "${settings.repoRef:v1.2.0}"
   },
 
   "settings": {
@@ -32,7 +32,7 @@
         "name": "repoRef",
         "caption": "Git tag or branch",
         "type": "string",
-        "default": "v1.0.0-alpha.4",
+        "default": "v1.2.0",
         "required": true
       },
       {
@@ -43,10 +43,63 @@
         "required": true
       },
       {
+        "name": "frontendOrigin",
+        "caption": "Frontend origin for browser RUM CORS (e.g. https://your-app.example.com) — leave the default if you're not using RUM yet",
+        "type": "string",
+        "default": "http://localhost:3000",
+        "required": false
+      },
+      {
+        "name": "alertDelivery",
+        "caption": "Alert delivery mechanism",
+        "type": "list",
+        "values": {
+          "webhook": "Webhook (Slack / Discord / PagerDuty)",
+          "email": "Email (SMTP)"
+        },
+        "default": "webhook",
+        "required": true
+      },
+      {
         "name": "alertWebhookUrl",
-        "caption": "Alert webhook URL (Slack/Discord/PagerDuty)",
+        "caption": "Alert webhook URL — required if Alert delivery is set to Webhook",
         "type": "string",
         "default": "https://example.invalid/alert",
+        "required": false
+      },
+      {
+        "name": "smtpHost",
+        "caption": "SMTP host:port — required if Alert delivery is set to Email (e.g. smtp.office365.com:587 for Microsoft 365)",
+        "type": "string",
+        "default": "smtp.office365.com:587",
+        "required": false
+      },
+      {
+        "name": "smtpUser",
+        "caption": "SMTP username (usually the full mailbox address) — required if Alert delivery is set to Email",
+        "type": "string",
+        "default": "",
+        "required": false
+      },
+      {
+        "name": "smtpPassword",
+        "caption": "SMTP password or app password — required if Alert delivery is set to Email. Modern Microsoft 365 / Outlook.com accounts often need an app password, not the plain mailbox password, once MFA is on",
+        "type": "password",
+        "default": "",
+        "required": false
+      },
+      {
+        "name": "smtpFromAddress",
+        "caption": "Alert email \"from\" address — required if Alert delivery is set to Email",
+        "type": "string",
+        "default": "",
+        "required": false
+      },
+      {
+        "name": "alertEmailAddresses",
+        "caption": "Alert recipient email address(es), semicolon-separated — required if Alert delivery is set to Email",
+        "type": "string",
+        "default": "",
         "required": false
       }
     ]
@@ -67,7 +120,7 @@
         "GRAFANA_PW": "${globals.GRAFANA_PW}",
         "BASIC_AUTH_USER": "${globals.BASIC_AUTH_USER}",
         "BASIC_AUTH_PW": "${globals.BASIC_AUTH_PW}",
-        "JELASTIC_PORTS": "80,443,4317"
+        "JELASTIC_PORTS": "80,443,4317,4040,8027"
       }
     }
   ],
@@ -92,6 +145,7 @@
         "cd ${globals.STACK_PATH}",
         "if [ ! -d .git ]; then git init && git remote add origin ${globals.REPO_URL} && git fetch --depth 1 origin ${globals.REPO_REF} && git checkout -f FETCH_HEAD; else git fetch --depth 1 origin ${globals.REPO_REF} && git reset --hard FETCH_HEAD; fi",
         "BASIC_AUTH_HASH=$(docker run --rm caddy:2-alpine caddy hash-password --plaintext '${globals.BASIC_AUTH_PW}')",
+        "if [ \"${settings.alertDelivery}\" = \"email\" ]; then SMTP_ENABLED_VAL=true; else SMTP_ENABLED_VAL=false; fi",
         "cat > .env <<ENVEOF",
         "DOMAIN=${env.domain}",
         "ACME_EMAIL=admin@${env.domain}",
@@ -99,14 +153,24 @@
         "GRAFANA_ADMIN_PASSWORD=${globals.GRAFANA_PW}",
         "BASIC_AUTH_USER=${globals.BASIC_AUTH_USER}",
         "BASIC_AUTH_HASH=${BASIC_AUTH_HASH}",
+        "FRONTEND_ORIGIN=${settings.frontendOrigin}",
         "PROMETHEUS_RETENTION=7d",
         "VICTORIALOGS_RETENTION=7d",
         "TEMPO_RETENTION_HOURS=72",
         "PYROSCOPE_RETENTION_HOURS=336",
         "STACK_PROFILE=simple",
         "ALERT_WEBHOOK_URL=${settings.alertWebhookUrl}",
+        "SMTP_ENABLED=${SMTP_ENABLED_VAL}",
+        "SMTP_HOST=${settings.smtpHost}",
+        "SMTP_USER=${settings.smtpUser}",
+        "SMTP_PASSWORD=${settings.smtpPassword}",
+        "SMTP_FROM_ADDRESS=${settings.smtpFromAddress}",
+        "SMTP_FROM_NAME=obstack Alerts",
+        "SMTP_STARTTLS_POLICY=MandatoryStartTLS",
+        "ALERT_EMAIL_ADDRESSES=${settings.alertEmailAddresses}",
         "ENVEOF",
         "chmod 600 .env",
+        "if [ \"${settings.alertDelivery}\" = \"email\" ]; then sed -i 's/receiver: default-webhook/receiver: default-email/' configs/grafana/provisioning/alerting/notification-policies.yaml; fi",
         "make simple || (echo '--- compose logs ---' && docker compose -f docker-compose.yml -f compose/simple.yml logs --tail 200 && exit 1)"
       ]
     },
@@ -163,7 +227,7 @@
   },
 
   "success": {
-    "text": "## obstack is ready\n\n### Open Grafana\n- **URL**: https://${env.domain}\n- **User**: `admin`\n- **Password**: `${globals.GRAFANA_PW}`\n\n### Send telemetry from your apps\n\n- **OTLP HTTP**: `https://${env.domain}/v1/{traces,metrics,logs}`\n- **OTLP gRPC**: `${env.domain}:4317`\n\nAuthentication (HTTP Basic):\n- **Username**: `${globals.BASIC_AUTH_USER}`\n- **Password**: `${globals.BASIC_AUTH_PW}`\n\nFor SDK env vars:\n```\nOTEL_EXPORTER_OTLP_ENDPOINT=https://${env.domain}\nOTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf\nOTEL_EXPORTER_OTLP_HEADERS=authorization=Basic <base64('${globals.BASIC_AUTH_USER}:${globals.BASIC_AUTH_PW}')>\n```\n\n### Next steps\n- Browse the 4 pre-built dashboards in Grafana → **obstack** folder\n- Read the [Quickstart](https://github.com/HameemDakheel/obstack/blob/main/docs/quickstart.md) and [instrumentation guides](https://github.com/HameemDakheel/obstack/tree/main/docs/instrumentation)\n- Use the **Connect to obstack** add-on (linker.jps) to auto-configure other Jelastic apps to send telemetry here.",
-    "email": "## obstack Deployed\n\n**Grafana**: https://${env.domain}\n- User: `admin` / Pass: `${globals.GRAFANA_PW}`\n\n**OTLP ingestion**: https://${env.domain}/v1/...\n- User: `${globals.BASIC_AUTH_USER}` / Pass: `${globals.BASIC_AUTH_PW}`"
+    "text": "## obstack is ready\n\n### Open Grafana\n- **URL**: https://${env.domain}\n- **User**: `admin`\n- **Password**: `${globals.GRAFANA_PW}`\n\n### Send telemetry from your apps\n\n- **OTLP HTTP**: `https://${env.domain}/v1/{traces,metrics,logs}`\n- **OTLP gRPC**: `${env.domain}:4317`\n- **Continuous profiling (Pyroscope)**: `https://${env.domain}:4040` — see docs/instrumentation/go.md's \"Continuous profiling\" section\n- **Browser RUM (Faro)**: `https://${env.domain}:8027/collect` — see docs/instrumentation/browser.md\n\nAuthentication (HTTP Basic, shared across OTLP/Pyroscope/Faro):\n- **Username**: `${globals.BASIC_AUTH_USER}`\n- **Password**: `${globals.BASIC_AUTH_PW}`\n\nFor SDK env vars:\n```\nOTEL_EXPORTER_OTLP_ENDPOINT=https://${env.domain}\nOTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf\nOTEL_EXPORTER_OTLP_HEADERS=authorization=Basic <base64('${globals.BASIC_AUTH_USER}:${globals.BASIC_AUTH_PW}')>\n```\n\n### Alerting\nDelivery mechanism: **${settings.alertDelivery}**. If that's email, double check the first alert actually arrives — SMTP providers (Microsoft 365 especially) can reject a misconfigured mailbox silently on the first attempt. Run `./scripts/verify_stack.sh` to confirm delivery is genuinely configured either way.\n\n### Next steps\n- Browse the pre-built dashboards in Grafana → **obstack** folder, including **Frontend RUM** if you're sending browser telemetry\n- Read the [Quickstart](https://github.com/HameemDakheel/obstack/blob/main/docs/quickstart.md) and [instrumentation guides](https://github.com/HameemDakheel/obstack/tree/main/docs/instrumentation)\n- Use the **Connect to obstack** add-on (linker.jps) to auto-configure other Jelastic apps to send telemetry here.",
+    "email": "## obstack Deployed\n\n**Grafana**: https://${env.domain}\n- User: `admin` / Pass: `${globals.GRAFANA_PW}`\n\n**OTLP ingestion**: https://${env.domain}/v1/...\n- User: `${globals.BASIC_AUTH_USER}` / Pass: `${globals.BASIC_AUTH_PW}`\n\n**Alert delivery**: ${settings.alertDelivery}"
   }
 }

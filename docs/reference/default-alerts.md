@@ -2,7 +2,19 @@
 
 > Source of truth: [`alerts/default-rules.yaml`](https://github.com/HameemDakheel/obstack/blob/main/alerts/default-rules.yaml)
 
-obstack ships with 12 pre-tuned alerts covering the most common production failures. Loaded by Prometheus on startup and routed via Grafana Alerting to the configured webhook.
+obstack ships with 12 pre-tuned alerts covering the most common production failures. Loaded by
+Prometheus on startup, evaluated there — and then bridged to Grafana Alerting's contact points by
+one Grafana-managed rule (`configs/grafana/provisioning/alerting/rules.yaml`) that watches
+Prometheus's own fired-alert state and re-fires through the configured webhook.
+
+That bridge step matters and is worth naming explicitly: earlier versions of this doc claimed
+alerts were "routed via Grafana Alerting to the configured webhook" without anything actually
+doing that routing. Confirmed directly (2026-08-24): a guaranteed-firing test alert reached zero
+requests at the webhook after 75 seconds, because nothing connected Prometheus's internal alert
+state to Grafana's Alertmanager — no Alertmanager service exists in this stack, and Grafana's
+Prometheus datasource has no ruler-mirroring configured (that's a Mimir/Cortex/Loki-only feature;
+vanilla Prometheus doesn't expose the API surface it needs). The bridge rule above is the fix,
+re-verified end to end after fixing it.
 
 ---
 
@@ -35,6 +47,7 @@ Extra alert rules ship as drop-in YAML files in `alerts/optional/`. They are not
 | Nginx | `alerts/optional/nginx.yaml` | `nginx-prometheus-exporter` |
 | Redis | `alerts/optional/redis.yaml` | `redis_exporter` (oliver006/redis_exporter) |
 | Host | `alerts/optional/host.yaml` | None — uses obstack's built-in OTel hostmetrics receiver |
+| API golden signals | `alerts/optional/api-golden-signals.yaml` | Your app instrumented with OTel HTTP server instrumentation — no separate exporter. Generic template: read the file's own header before activating, especially for the dependency-pool rule, which ships with deliberately fake placeholder metric names you must replace |
 
 Activation:
 

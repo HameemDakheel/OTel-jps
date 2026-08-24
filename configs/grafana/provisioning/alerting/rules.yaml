@@ -1,0 +1,30 @@
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: prometheus-alert-bridge
+    folder: obstack-alerting
+    interval: 30s
+    rules:
+      - uid: obstack-prom-bridge
+        title: Prometheus alerts bridge
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus
+            model:
+              editorMode: code
+              expr: 'label_replace(ALERTS{alertstate="firing"}, "prom_alertname", "$1", "alertname", "(.*)")'
+              instant: true
+              range: false
+              refId: A
+        noDataState: OK
+        execErrState: Error
+        for: 0m
+        annotations:
+          summary: "{{ $labels.prom_alertname }} firing{{ if $labels.instance }} on {{ $labels.instance }}{{ end }}"
+        labels: {}
+        isPaused: false

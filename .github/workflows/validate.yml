@@ -37,6 +37,7 @@ jobs:
             configs/grafana/provisioning/dashboards/dashboards.yaml \
             configs/grafana/provisioning/alerting/contact-points.yaml \
             configs/grafana/provisioning/alerting/notification-policies.yaml \
+            configs/grafana/provisioning/alerting/rules.yaml \
             alerts/default-rules.yaml \
             mkdocs.yml \
             templates/coolify/docker-compose.yml \

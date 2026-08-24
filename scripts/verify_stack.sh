@@ -72,8 +72,22 @@ done
 # contact-points.yaml default IS the placeholder below
 # (configs/grafana/provisioning/alerting/contact-points.yaml), and nothing
 # checked whether a deployment ever left it there. This check does.
+#
+# Reads the value from the LIVE Grafana container's own environment, not
+# from a local .env file — confirmed necessary, not stylistic: this script
+# does not source .env, and neither does `make verify`, so a first version
+# of this check that read a plain shell variable FAILED PERMANENTLY even
+# with a genuinely correct ALERT_WEBHOOK_URL sitting in .env, because that
+# value never reaches this script's process environment the normal,
+# documented way a user runs `make verify`. Proved directly: added a
+# real-looking webhook URL to .env, ran `make verify` exactly as
+# quickstart.md's Step 4 documents, and it still reported the placeholder
+# failure. Reading the running container's actual env is also strictly
+# more correct than reading the file even once fixed: it reflects what's
+# actually deployed, not what a local .env says, which can drift if
+# someone edits .env without recreating the grafana container.
 ALERT_WEBHOOK_PLACEHOLDER="https://example.invalid/alert"
-ALERT_WEBHOOK_URL="${ALERT_WEBHOOK_URL:-$ALERT_WEBHOOK_PLACEHOLDER}"
+ALERT_WEBHOOK_URL="$(docker exec obstack-grafana printenv ALERT_WEBHOOK_URL 2>/dev/null || true)"
 if [[ "$ALERT_WEBHOOK_URL" == "$ALERT_WEBHOOK_PLACEHOLDER" || -z "$ALERT_WEBHOOK_URL" ]]; then
   RESULTS+=("FAIL alert-webhook (ALERT_WEBHOOK_URL is unset or still the placeholder — every alert will fire into a void)")
   FAIL=$((FAIL+1))

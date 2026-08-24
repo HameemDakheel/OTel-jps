@@ -55,6 +55,15 @@ Total idle RAM: **~310 MB** for the entire stack. Designed from the start for a 
        └─────────────────┘
 ```
 
+**Alerting is two steps, not one** — the diagram's "auto-provisioned alerts" line is Grafana's
+side of it, but Grafana doesn't evaluate `alerts/*.yaml` itself. Prometheus does, on its own
+(that's what `rule_files` in `configs/prometheus/prometheus.yml` is for), and a single
+Grafana-managed rule (`configs/grafana/provisioning/alerting/rules.yaml`) watches Prometheus's own
+fired-alert state and re-fires it through Grafana's contact points. See
+[Default alerts](reference/default-alerts.md) for the full mechanism and why it needed fixing
+(2026-08-24) — an earlier version of this stack had the contact points and webhook correctly
+configured with nothing ever feeding them.
+
 ---
 
 ## Components

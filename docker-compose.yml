@@ -29,6 +29,7 @@ services:
       - "443:443"
       - "4317:4317"   # OTLP gRPC
       - "4040:4040"   # Pyroscope continuous-profiling ingest (basic auth, see Caddyfile)
+      - "8027:8027"   # Faro RUM ingest (basic auth, see Caddyfile)
     volumes:
       - ./configs/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
@@ -47,7 +48,15 @@ services:
         condition: service_started
 
   otel-collector:
-    image: otel/opentelemetry-collector-contrib:0.111.0
+    # Bumped 0.111.0 -> 0.153.0 for Task 4 (RUM): the faro receiver does not
+    # exist in 0.111.0 at all ("unknown type: faro", confirmed directly by
+    # running `... validate` against it) - it was added to the contrib
+    # distribution somewhere between these two releases. 0.153.0 chosen
+    # deliberately, not just "the latest" - it's the exact version already
+    # proven live in a real production deployment (UniContentAPI's own OTel
+    # Collector, in the UOT main-site workspace), so this pin carries real
+    # evidence of working, not just a version number. See docs/operations/upgrade.md.
+    image: otel/opentelemetry-collector-contrib:0.153.0
     container_name: obstack-otelcol
     restart: unless-stopped
     networks:
@@ -56,9 +65,17 @@ services:
     volumes:
       - ./configs/otel-collector/config.yaml:/etc/otelcol-contrib/config.yaml:ro
       - /:/hostfs:ro,rslave    # for hostmetrics receiver (v1.1+)
+    environment:
+      # Read by the faro receiver's CORS config (configs/otel-collector/config.yaml)
+      # via ${env:FRONTEND_ORIGIN}. Must be your real frontend's origin in
+      # production - the browser posts here cross-origin, so CORS has to name
+      # it exactly. Dev-friendly default so a fresh local `make simple` boots
+      # without requiring this to be set first.
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:3000}
     expose:
       - "4317"   # gRPC OTLP (Caddy fronts this)
       - "4318"   # HTTP OTLP
+      - "8027"   # Faro RUM ingest (Caddy fronts this — see :8027 block in Caddyfile)
       - "8888"   # Self-metrics
       - "13133"  # health_check
     depends_on:

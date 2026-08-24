@@ -1,0 +1,170 @@
+{
+  "title": "obstack · Frontend RUM",
+  "uid": "obstack-frontend-rum",
+  "tags": ["obstack", "rum", "frontend"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "app",
+        "type": "query",
+        "label": "Application",
+        "datasource": { "uid": "victorialogs", "type": "victoriametrics-logs-datasource" },
+        "query": "(kind:log OR kind:measurement OR kind:exception) | uniq by (service.name)",
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true,
+        "current": { "text": "All", "value": "$__all" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "RUM signal volume by kind",
+      "description": "Every Faro payload lands here as one of three kinds: log (console/custom logs), measurement (Web Vitals and other numeric metrics), or exception (uncaught JS errors). Query shape verified 2026-08-24 against a real Faro payload — kind, _time bucketing, and the stats-by-kind grouping are all proven working, not guessed.",
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 8 },
+      "datasource": { "uid": "victorialogs", "type": "victoriametrics-logs-datasource" },
+      "targets": [{
+        "expr": "service.name:in(${app:csv}) | stats by (_time:1m, kind) count() as count",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "JS error rate (uncaught exceptions)",
+      "description": "Count of kind:exception records over time. This is what a shipped frontend regression looks like — a sudden step up from zero.",
+      "gridPos": { "x": 0, "y": 8, "w": 24, "h": 8 },
+      "datasource": { "uid": "victorialogs", "type": "victoriametrics-logs-datasource" },
+      "targets": [{
+        "expr": "service.name:in(${app:csv}) kind:exception | stats by (_time:1m) count() as errors",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "LCP (Largest Contentful Paint, ms, avg)",
+      "description": "Web Vitals arrive as kind:measurement, type:web-vitals, with each metric stored twice in the message text (a plain key and a value_-prefixed key) — the value_ prefixed one is what these panels extract. Confirmed 2026-08-24: a chained single-field extract per metric works reliably; a single extract call with all four fields in one pattern does NOT (returns NaN) — each field needs its own extract pipe. The LAST field in a chain also needs its own trailing-space delimiter, same as every other field — omitting it let the pattern capture past the number into the next key=value pair, which is what originally produced a NaN on TTFB specifically until this was caught and fixed.",
+      "gridPos": { "x": 0, "y": 16, "w": 6, "h": 6 },
+      "datasource": { "uid": "victorialogs", "type": "victoriametrics-logs-datasource" },
+      "targets": [{
+        "expr": "service.name:in(${app:csv}) kind:measurement type:web-vitals | extract \"value_LCP=<LCP> \" | stats avg(LCP) as avg_lcp",
+        "refId": "A"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 2500 },
+              { "color": "red", "value": 4000 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "FCP (First Contentful Paint, ms, avg)",
+      "gridPos": { "x": 6, "y": 16, "w": 6, "h": 6 },
+      "datasource": { "uid": "victorialogs", "type": "victoriametrics-logs-datasource" },
+      "targets": [{
+        "expr": "service.name:in(${app:csv}) kind:measurement type:web-vitals | extract \"value_FCP=<FCP> \" | stats avg(FCP) as avg_fcp",
+        "refId": "A"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1800 },
+              { "color": "red", "value": 3000 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "CLS (Cumulative Layout Shift, avg)",
+      "gridPos": { "x": 12, "y": 16, "w": 6, "h": 6 },
+      "datasource": { "uid": "victorialogs", "type": "victoriametrics-logs-datasource" },
+      "targets": [{
+        "expr": "service.name:in(${app:csv}) kind:measurement type:web-vitals | extract \"value_CLS=<CLS> \" | stats avg(CLS) as avg_cls",
+        "refId": "A"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.1 },
+              { "color": "red", "value": 0.25 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "TTFB (Time to First Byte, ms, avg)",
+      "description": "Confirmed the trailing-space delimiter matters here specifically — this field sits last in the raw message before app_name=..., so without its own trailing space the extract pattern captured into the next key=value pair instead of stopping at the number, and this panel returned NaN until that was fixed.",
+      "gridPos": { "x": 18, "y": 16, "w": 6, "h": 6 },
+      "datasource": { "uid": "victorialogs", "type": "victoriametrics-logs-datasource" },
+      "targets": [{
+        "expr": "service.name:in(${app:csv}) kind:measurement type:web-vitals | extract \"value_TTFB=<TTFB> \" | stats avg(TTFB) as avg_ttfb",
+        "refId": "A"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 800 },
+              { "color": "red", "value": 1800 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "logs",
+      "title": "Recent RUM activity (logs, measurements, exceptions)",
+      "gridPos": { "x": 0, "y": 22, "w": 24, "h": 12 },
+      "datasource": { "uid": "victorialogs", "type": "victoriametrics-logs-datasource" },
+      "targets": [{
+        "expr": "service.name:in(${app:csv})",
+        "refId": "A"
+      }],
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "sortOrder": "Descending"
+      }
+    }
+  ]
+}

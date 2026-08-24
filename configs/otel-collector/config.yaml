@@ -10,6 +10,24 @@ receivers:
       http:
         endpoint: 0.0.0.0:4318
 
+  # Frontend RUM (Real User Monitoring) — the Grafana Faro Web SDK.
+  # Own dedicated port (8027), mirroring the pattern this file already uses for
+  # Pyroscope (see configs/caddy/Caddyfile's :4040 block, and its own comment on
+  # why a dedicated port beats a path prefix): the browser posts here directly,
+  # not through the OTLP endpoints above. Port and CORS shape verified against a
+  # real production OTel Collector config already running this exact receiver
+  # (UniContentAPI/deploy/collector/config.yaml in the UOT main-site workspace) —
+  # not invented from scratch. FRONTEND_ORIGIN must be your real frontend's
+  # origin (e.g. https://example.com), not a wildcard — the browser sends this
+  # request cross-origin, so CORS has to name it exactly.
+  faro:
+    endpoint: 0.0.0.0:8027
+    cors:
+      allowed_origins:
+        - "${env:FRONTEND_ORIGIN}"
+      allowed_headers:
+        - "*"
+
   # Self-monitoring: scrape the collector's own /metrics
   prometheus/self:
     config:
@@ -97,18 +115,35 @@ extensions:
 service:
   extensions: [health_check]
   telemetry:
+    # Old `address: 0.0.0.0:8888` shape was removed somewhere between 0.111.0
+    # and 0.153.0 (the version bump Task 4 needed for the faro receiver to
+    # exist at all) - confirmed directly, `validate` rejected it outright:
+    # "'migration.MetricsConfigV030' has invalid keys: address". Replaced with
+    # the shape UOT's own production collector already runs on this exact
+    # version (UniContentAPI/deploy/collector/config.yaml) rather than guessed.
     metrics:
-      address: 0.0.0.0:8888
+      level: detailed
+      readers:
+        - pull:
+            exporter:
+              prometheus:
+                host: 0.0.0.0
+                port: 8888
   pipelines:
     metrics:
       receivers: [otlp, prometheus/self, hostmetrics]
       processors: [memory_limiter, resourcedetection, batch]
       exporters: [prometheusremotewrite]
     logs:
-      receivers: [otlp]
+      # faro contributes browser exceptions/console logs into the SAME
+      # VictoriaLogs backend everything else uses — no new pipeline, no new
+      # exporter, per the plan this was built from.
+      receivers: [otlp, faro]
       processors: [memory_limiter, resourcedetection, batch]
       exporters: [otlphttp/logs]
     traces:
-      receivers: [otlp]
+      # faro contributes browser (RUM) spans into the SAME Tempo backend
+      # everything else uses.
+      receivers: [otlp, faro]
       processors: [memory_limiter, resourcedetection, batch]
       exporters: [otlphttp/tempo]

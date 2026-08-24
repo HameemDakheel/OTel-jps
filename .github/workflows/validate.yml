@@ -58,7 +58,8 @@ jobs:
             configs/grafana/dashboards/stack-health.json \
             configs/grafana/dashboards/container-metrics.json \
             configs/grafana/dashboards/logs-explorer.json \
-            configs/grafana/dashboards/traces-browser.json; do
+            configs/grafana/dashboards/traces-browser.json \
+            configs/grafana/dashboards/frontend-rum.json; do
             echo "Validating $f"
             python3 -c "import json; json.load(open('$f'))"
           done
@@ -92,9 +93,16 @@ jobs:
           # with a plain :ro mount (rslave is a mount-propagation flag, meaningless for a
           # one-shot `docker run` with no nested mounts to propagate). Confirmed fixed
           # 2026-08-24 by running this exact command with and without the mount locally.
+          # Bumped 0.111.0 -> 0.153.0 for Task 4 (RUM) - the faro receiver this
+          # config now uses does not exist in 0.111.0 at all. FRONTEND_ORIGIN
+          # supplied explicitly (placeholder value) so the config's own
+          # ${env:FRONTEND_ORIGIN} expansion has something real to resolve,
+          # matching how BASIC_AUTH_HASH is supplied as a placeholder for the
+          # compose-merge step above.
           docker run --rm -v "$PWD/configs/otel-collector/config.yaml:/etc/otelcol-contrib/config.yaml:ro" \
             -v "/:/hostfs:ro" \
-            otel/opentelemetry-collector-contrib:0.111.0 validate --config=/etc/otelcol-contrib/config.yaml
+            -e FRONTEND_ORIGIN="https://placeholder-for-config-validation.invalid" \
+            otel/opentelemetry-collector-contrib:0.153.0 validate --config=/etc/otelcol-contrib/config.yaml
 
       - name: Validate Prometheus alert rules
         run: |

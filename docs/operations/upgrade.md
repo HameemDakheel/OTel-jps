@@ -12,7 +12,7 @@ Every image in `docker-compose.yml` is pinned:
 
 ```yaml
 image: caddy:2-alpine
-image: otel/opentelemetry-collector-contrib:0.111.0
+image: otel/opentelemetry-collector-contrib:0.153.0
 image: prom/prometheus:v3.0.1
 image: victoriametrics/victoria-logs:v1.1.0-victorialogs
 image: grafana/tempo:2.6.1

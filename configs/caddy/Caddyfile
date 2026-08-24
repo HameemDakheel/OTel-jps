@@ -72,6 +72,36 @@
     reverse_proxy pyroscope:4040
 }
 
+# Frontend RUM ingest (Grafana Faro Web SDK), dedicated port — same reasoning
+# as the :4040 block above for the port choice itself: a real production OTel
+# Collector already proves it works (UniContentAPI/deploy/collector/config.yaml,
+# UOT main-site workspace), and a dedicated port sidesteps the same
+# handle-vs-handle_path prefix question.
+#
+# UNLIKE :4040, this endpoint is called FROM A BROWSER, not server-to-server —
+# and that changes what basic_auth is allowed to touch. A cross-origin POST
+# carrying an Authorization header triggers a CORS PREFLIGHT (an unauthenticated
+# OPTIONS request the browser sends first). Confirmed empirically, 2026-08-24,
+# against a real Caddy container: an unconditional basic_auth block answers
+# that preflight with 401, and a browser never even attempts the real POST
+# after a failed preflight — this would have shipped a Caddyfile that looks
+# correct, passes `caddy validate`, and silently drops every RUM payload from
+# every real browser. Exactly the class of bug MS-198 already found once on
+# this same codebase's own nginx layer, on the UOT main-site side.
+#
+# Fix: exempt OPTIONS specifically from the auth check, so the preflight
+# reaches the real otel-collector faro receiver — which has its own `cors:`
+# block (configs/otel-collector/config.yaml, FRONTEND_ORIGIN) and answers the
+# preflight with the correct Access-Control-* headers itself. Caddy's job here
+# is only to gate the real, credential-bearing POST.
+:8027 {
+    @notPreflight not method OPTIONS
+    basic_auth @notPreflight {
+        {$BASIC_AUTH_USER:ingest} {$BASIC_AUTH_HASH:$2a$14$1234567890123456789012abcdefghijklmnopqrstuvwxyzABCDEFGHIJ}
+    }
+    reverse_proxy otel-collector:8027
+}
+
 # Internal Docker hostname site (for in-network clients like examples/otel-demo).
 # Forces internal self-signed cert (no ACME) and reuses the same auth + routing.
 caddy, obstack-caddy {

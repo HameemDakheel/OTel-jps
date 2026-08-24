@@ -11,7 +11,74 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Planned
 - Real screenshots in README and docs (manual capture post-launch)
 - Submission of obstack templates to Coolify Templates / Dokploy Templates / CapRover One-Click Apps registries
-- v1.2.0 — OAuth2 login for Grafana (deferred from v1.1)
+- OAuth2 login for Grafana (deferred from v1.1; version number not yet assigned — v1.2.0 shipped
+  a different set of work first, see below)
+
+---
+
+## [v1.2.0] — 2026-08-24
+
+Browser RUM, application-level alerting (with a real delivery bug found and fixed), a generic
+API golden-signals alert pack, and documented + verified MCP integration. Six tasks, driven by a
+pre-deployment review that found real gaps rather than assumed the stack was ready.
+
+### Added
+- **Browser RUM via Grafana Faro** — new `faro` receiver on the OTel Collector (own port, 8027),
+  a dedicated public Caddy route with a CORS-preflight fix (an unconditional `basic_auth`
+  directive answers a browser's `OPTIONS` preflight with 401, silently breaking the whole feature
+  for every real browser — the same defect class as a real incident on unrelated production
+  infrastructure), a new dashboard (`configs/grafana/dashboards/frontend-rum.json` — signal
+  volume by kind, JS error rate, the four Core Web Vitals, recent activity, an `app` template
+  variable so it works for any hosted application), and a full setup guide
+  (`docs/instrumentation/browser.md`). Required bumping the pinned OTel Collector image
+  `0.111.0` → `0.153.0` — the faro receiver doesn't exist at all in `0.111.0` — which also forced
+  a `service.telemetry.metrics` schema migration.
+- **Generic API golden-signals alert pack** (`alerts/optional/api-golden-signals.yaml`) — 5xx
+  rate, 5xx absolute count, p95 latency with a minimum-sample-count guard, and a parameterized
+  dependency-pool-exhaustion template. Metric names are evidence-grounded (the pre-1.23 OTel HTTP
+  semantic convention, confirmed against a real production alert rule using the same shape), not
+  guessed.
+- **Prometheus-to-Grafana alert bridge**
+  (`configs/grafana/provisioning/alerting/rules.yaml`) — see Fixed below; this is the mechanism
+  that makes every alert this project ships (old and new) actually reach anyone.
+- **Grafana MCP integration guide** (`docs/integrations/mcp.md`, new "Integrations" nav section)
+  — documents and verifies running the official `grafana/mcp-grafana` server against a
+  self-hosted obstack Grafana instead of Grafana Cloud. No obstack code changed; verified for
+  real against a running instance (dashboard search, a live PromQL query, and alert-rule listing
+  all confirmed working through the actual MCP protocol), not just described from the upstream
+  README.
+- CI now validates every optional alert pack (previously only the default pack was checked) and
+  every Grafana alerting/dashboard provisioning YAML file.
+
+### Fixed
+- **Alerts fired in Prometheus but reached nobody** — the most significant finding of this
+  release. There was no Alertmanager service and no ruler-mirroring wired into Grafana's
+  Prometheus datasource, so every alert this project has ever shipped — the 12 default rules,
+  every optional pack, old and new — evaluated inside Prometheus's own internal state and never
+  reached Grafana's contact points, regardless of whether `ALERT_WEBHOOK_URL` held a real URL or
+  the placeholder. Proved directly with a guaranteed-firing test alert and a listener at the
+  configured webhook: zero requests after 75 seconds. Fixed with one Grafana-managed alert rule
+  that watches Prometheus's own fired-alert state and re-fires it through the contact points
+  Task 3 (v1.1.1-era work) already built — no new service required.
+- **`scripts/verify_stack.sh`'s alert-webhook check could fail forever even when correctly
+  configured** — it read `ALERT_WEBHOOK_URL` from the calling shell's environment, but neither
+  the script nor `make verify` ever sources `.env`, so a real webhook URL sitting in `.env` never
+  reached the check the documented, normal way a user runs `make verify`. Fixed by reading the
+  value from the live Grafana container's own environment instead — also more correct than
+  reading `.env`, since it reflects what's actually deployed.
+- CI's OTel Collector validation step had been failing on every push since the `hostmetrics`
+  receiver landed (four months prior) — it never supplied the `/hostfs` mount that receiver's
+  `root_path` needs. Fixed.
+- A stale compose-merge check in CI referenced `compose/otel-demo.yml`, deleted in `809fa61` and
+  replaced by a separate compose project — the reference had been dead since. Fixed.
+- Eight pre-redesign dead config files (`configs/loki.yaml`, `configs/mimir.yaml`, and others
+  from before the Loki/Mimir → VictoriaLogs/Prometheus redesign), unreferenced by any compose
+  file, confirmed by repo-wide grep before deletion.
+
+### Changed
+- OTel Collector image pinned to `0.153.0` (from `0.111.0`) — see Added, RUM.
+- The repo's local `CLAUDE.md` (untracked, never committed — so this doesn't show as a diff)
+  described a fully superseded architecture and was rewritten from the real, current files.
 
 ---
 

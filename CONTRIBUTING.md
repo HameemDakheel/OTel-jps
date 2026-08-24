@@ -102,7 +102,23 @@ Open Grafana at <https://localhost/> (admin / from your `.env`).
 ### Editing configs
 
 - **`configs/caddy/Caddyfile`**: changes are visible after `docker compose -f docker-compose.yml -f compose/simple.yml restart caddy`. Test public OTLP path with a curl POST to `https://localhost/v1/traces` after every change.
-- **`configs/otel-collector/config.yaml`**: validate with `docker run --rm -v "$PWD/configs/otel-collector:/cfg:ro" otel/opentelemetry-collector-contrib:0.142.0 --config=/cfg/config.yaml --dry-run` (or just restart and watch logs).
+- **`configs/otel-collector/config.yaml`**: validate with:
+
+  ```bash
+  docker run --rm -v "$PWD/configs/otel-collector/config.yaml:/etc/otelcol-contrib/config.yaml:ro" \
+    -v "/:/hostfs:ro" \
+    -e FRONTEND_ORIGIN="https://placeholder-for-config-validation.invalid" \
+    otel/opentelemetry-collector-contrib:0.153.0 validate --config=/etc/otelcol-contrib/config.yaml
+  ```
+
+  (or just restart and watch logs). This is the same command CI runs (see
+  `.github/workflows/validate.yml`) — every flag here is load-bearing: the `/hostfs` mount is
+  what the `hostmetrics` receiver's `root_path` needs (omit it and validation fails with
+  `invalid root_path: stat /hostfs: no such file or directory`, confirmed directly), and
+  `FRONTEND_ORIGIN` is what the `faro` receiver's CORS config resolves. The previous version of
+  this line pinned a stale `0.142.0`, was missing both of these, and used a `--dry-run` flag that
+  doesn't match this binary's actual CLI (`validate` is the real subcommand) — fixed 2026-08-24
+  to match what's proven working everywhere else in this repo, verified by running it.
 - **`configs/prometheus/prometheus.yml`**: validate with `promtool check config`.
 - **`configs/tempo/tempo.yaml`** / **`pyroscope/pyroscope.yaml`**: restart and watch `/ready`.
 

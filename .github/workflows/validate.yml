@@ -84,7 +84,16 @@ jobs:
 
       - name: Validate OTel Collector config
         run: |
+          # The hostmetrics receiver's root_path: /hostfs (added in v1.1) needs that path to
+          # actually exist, or `validate` fails with "invalid root_path: stat /hostfs: no such
+          # file or directory" - this step has been failing on every push since v1.1 landed,
+          # four months ago, because it never supplied this mount. Real docker-compose.yml
+          # bind-mounts the host's / as /hostfs:ro,rslave for the real service; matched here
+          # with a plain :ro mount (rslave is a mount-propagation flag, meaningless for a
+          # one-shot `docker run` with no nested mounts to propagate). Confirmed fixed
+          # 2026-08-24 by running this exact command with and without the mount locally.
           docker run --rm -v "$PWD/configs/otel-collector/config.yaml:/etc/otelcol-contrib/config.yaml:ro" \
+            -v "/:/hostfs:ro" \
             otel/opentelemetry-collector-contrib:0.111.0 validate --config=/etc/otelcol-contrib/config.yaml
 
       - name: Validate Prometheus alert rules

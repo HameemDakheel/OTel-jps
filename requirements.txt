@@ -1,0 +1,13 @@
+# Python dependencies for CI validation and local doc builds.
+# Not a runtime dependency of obstack itself — obstack is entirely
+# containerized (see CLAUDE.md's "No traditional build system"). This file
+# exists so `actions/setup-python@v5`'s `cache: pip` step in
+# .github/workflows/validate.yml has a real file to hash for its cache key —
+# without one, that step fails outright with "No file ... matched to
+# [**/requirements.txt or **/pyproject.toml]", which is exactly what was
+# happening: confirmed directly via `gh run view --log-failed` against a
+# real GitHub Actions run, on this exact push. Every previous run this repo
+# has record of (back to at least 2026-01-11) failed at this same step,
+# before ever reaching any of the actual validation content.
+pyyaml
+mkdocs-material

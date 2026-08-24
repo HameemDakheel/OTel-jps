@@ -23,7 +23,7 @@ jobs:
       - name: Install Python deps
         run: |
           pip install --upgrade pip
-          pip install pyyaml mkdocs-material
+          pip install -r requirements.txt
 
       - name: Validate YAML configs
         run: |

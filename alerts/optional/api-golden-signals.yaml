@@ -1,0 +1,107 @@
+# obstack optional alert pack: API golden signals (5xx rate, 5xx count, p95 latency, dependency
+# exhaustion) — a GENERIC template, not tuned for any one application.
+#
+# Requires: your application instrumented with OpenTelemetry HTTP server instrumentation (e.g.
+# otelhttp for Go, opentelemetry-instrumentation-fastapi/express/etc. for Python/Node/Java),
+# pushing metrics through obstack's own OTLP ingestion — no separate exporter needed, unlike the
+# postgres/nginx/redis packs.
+#
+# Activate: cp alerts/optional/api-golden-signals.yaml alerts/ && restart prometheus
+#
+# METRIC NAME CAVEAT, stated plainly because it matters: this pack targets
+# http_server_duration_milliseconds_{bucket,count} with http_method / http_status_code /
+# http_route labels — the pre-1.23 OpenTelemetry HTTP semantic convention (duration in
+# milliseconds). This is not a guess: it's what a real production Go service instrumented with
+# otelhttp actually emits through this exact collector pipeline, confirmed by reading
+# UniContentAPI/deploy/grafana/alert-rules/uot-api-slo-shadow.json in the UOT main-site
+# workspace (a real, already-running SLO alert using this exact metric and these exact label
+# names). Some OTel SDKs, especially newer ones, have moved to the stable 1.23+ convention
+# instead — http_server_request_duration_seconds (note: seconds, not milliseconds) with
+# http.request.method / http.response.status_code / http.route labels, dots turned to
+# underscores by the same prometheusremotewrite exporter. If `promtool check rules` passes but
+# every rule below shows zero data in Grafana, check which shape your SDK actually emits
+# (Grafana Explore → Prometheus → type `http_` and see what autocompletes) and swap the metric
+# name and bucket-boundary units (seconds vs milliseconds) accordingly — the alerting logic
+# itself doesn't change either way.
+
+groups:
+  - name: obstack-api-golden-signals
+    interval: 30s
+    rules:
+      - alert: APIHighErrorRate
+        expr: >-
+          sum(rate(http_server_duration_milliseconds_count{http_status_code=~"5.."}[5m]))
+          /
+          sum(rate(http_server_duration_milliseconds_count[5m]))
+          > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          pack: api-golden-signals
+        annotations:
+          summary: "API 5xx error rate above 5%"
+          description: "{{ $value | humanizePercentage }} of requests returned a 5xx in the last 5 minutes. Adjust the 0.05 threshold to match your own error budget — this is a starting point, not a universal number."
+
+      - alert: APIHighErrorCount
+        expr: sum(increase(http_server_duration_milliseconds_count{http_status_code=~"5.."}[5m])) > 10
+        for: 5m
+        labels:
+          severity: warning
+          pack: api-golden-signals
+        annotations:
+          summary: "API absolute 5xx count above threshold"
+          description: >-
+            {{ $value }} 5xx responses in the last 5 minutes. This exists alongside the ratio
+            rule above on purpose: a ratio alert on a low-traffic site can fire on ONE error
+            during a quiet hour (1 error / 1 total request = 100%), or conversely stay silent
+            while dozens of real errors are buried in a much larger request volume that still
+            keeps the ratio under 5%. An absolute count catches both cases the ratio rule alone
+            can miss. Tune the "10" threshold to your own traffic level.
+
+      - alert: APIHighLatencyP95
+        expr: >-
+          (
+            histogram_quantile(0.95, sum(rate(http_server_duration_milliseconds_bucket[5m])) by (le))
+            > 1000
+          )
+          and
+          (
+            sum(increase(http_server_duration_milliseconds_count[5m])) > 20
+          )
+        for: 10m
+        labels:
+          severity: warning
+          pack: api-golden-signals
+        annotations:
+          summary: "API p95 latency above 1000ms"
+          description: >-
+            p95 latency is {{ $value }}ms over the last 5 minutes. The trailing "and (... > 20)"
+            clause is the important part on a low-traffic deployment, not decoration: without a
+            minimum-sample-count guard, a p95 calculation over a handful of requests is noise,
+            and this alert would fire on "nobody happened to hit the site this hour," which is
+            not an incident. Same pattern already proven in UOT's own real production SLO rule
+            (a minimum-request-count AND clause, not a Grafana-side "no data" setting — this file
+            is pure Prometheus rule syntax, which has no such setting to begin with). Tune both
+            the 1000ms threshold and the 20-request minimum to your own traffic and SLO.
+
+      - alert: APIDependencyPoolNearExhaustion
+        expr: your_pool_in_use_total / your_pool_max_total > 0.85
+        for: 5m
+        labels:
+          severity: warning
+          pack: api-golden-signals
+        annotations:
+          summary: "A dependency connection pool is nearing exhaustion"
+          description: >-
+            {{ $value | humanizePercentage }} of pool capacity in use. `your_pool_in_use_total`
+            and `your_pool_max_total` are deliberately fake placeholder metric names — this
+            template is parameterized because the real metric names depend entirely on what's
+            being monitored. Replace both with your actual metric names before activating this
+            rule (the placeholder names DO pass `promtool check rules`, since promtool only
+            checks PromQL syntax, not whether a metric exists — this rule will simply never fire
+            until you edit it). Examples: a Go app using database/sql via otelsql exposes
+            dbclient_connections_used / dbclient_connections_max; a Node app using a Postgres
+            pool library typically exposes something like pg_pool_total_count /
+            pg_pool_max_count depending on the library; Redis client pools vary by language and
+            client library. Check what your own dependency client actually exports before
+            picking the real names.

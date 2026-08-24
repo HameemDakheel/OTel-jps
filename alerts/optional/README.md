@@ -24,6 +24,7 @@ docker compose -f docker-compose.yml -f compose/simple.yml restart prometheus
 | `nginx.yaml` | [`nginx-prometheus-exporter`](https://github.com/nginxinc/nginx-prometheus-exporter) | Up/down, connection waiting ratio |
 | `redis.yaml` | [`redis_exporter`](https://github.com/oliver006/redis_exporter) | Up/down, memory pressure, evictions, rejected connections |
 | `host.yaml` | The OTel Collector `hostmetrics` receiver (built into obstack v1.1+; nothing extra to deploy) | Host CPU saturation, memory pressure, disk fill, iowait, network errors |
+| `api-golden-signals.yaml` | Your app instrumented with OTel HTTP server instrumentation (e.g. `otelhttp` for Go) — no separate exporter needed | 5xx error rate, absolute 5xx count, p95 latency, dependency-pool exhaustion (generic template — read the file's header before activating; the pool-exhaustion rule needs real metric names substituted in) |
 
 ## Adding your own packs
 

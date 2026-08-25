@@ -57,13 +57,25 @@ groups:
           description: "Prometheus has {{ $value }} active series. Risk of memory blowup."
 
       - alert: TempoIngestErrors
-        expr: rate(tempo_distributor_ingester_clients[5m]) == 0 and tempo_distributor_ingester_clients > 0
+        # Watches spans Tempo actually REFUSES (rate limits, oversized traces,
+        # unknown errors) — a real ingest-path signal. The previous expression
+        # (`rate(tempo_distributor_ingester_clients[5m]) == 0 and
+        # tempo_distributor_ingester_clients > 0`) was inverted by construction:
+        # that metric is a GAUGE that sits constant at its healthy value, the
+        # rate of a constant is always zero, so the rule fired PERMANENTLY on
+        # every healthy deployment — and would have gone quiet in the one case
+        # it was written for (connectivity loss drops the gauge to 0, failing
+        # the `> 0` half). Caught on a real deployment 2026-08-25, where it sat
+        # firing against a Tempo that was verifiably ingesting traces with zero
+        # discards; it escaped every earlier verification pass because its 10m
+        # `for:` outlasted each test window.
+        expr: sum(rate(tempo_discarded_spans_total[5m])) > 0
         for: 10m
         labels:
           severity: warning
         annotations:
-          summary: "Tempo ingester connectivity issue"
-          description: "Tempo distributor cannot reach ingesters."
+          summary: "Tempo is discarding spans — traces are being lost"
+          description: "Tempo discarded {{ $value }} spans/sec over 5m (see tempo_discarded_spans_total by `reason`: live_traces_exceeded, trace_too_large, unknown_error)."
 
       - alert: GrafanaDown
         expr: up{job="grafana"} == 0

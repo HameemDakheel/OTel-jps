@@ -28,7 +28,7 @@ re-verified end to end after fixing it.
 | `HighMemoryUsage` | warning | `container_memory / limit > 0.85` | 5 m | A container is approaching its memory limit | [service-down](../operations/runbooks/service-down.md) (if OOM follows) |
 | `HighCPUUsage` | warning | `rate(container_cpu_seconds[5m]) > 0.9` | 10 m | A container is sustained at >90% of one core | — |
 | `PrometheusHighCardinality` | warning | `prometheus_tsdb_head_series > 1000000` | 10 m | Cardinality explosion — Prometheus memory at risk | [high-cardinality](../operations/runbooks/high-cardinality.md) |
-| `TempoIngestErrors` | warning | Tempo distributor can't reach ingesters | 10 m | Trace ingestion path broken | [troubleshooting](../operations/troubleshooting.md) |
+| `TempoIngestErrors` | warning | `sum(rate(tempo_discarded_spans_total[5m])) > 0` | 10 m | Tempo is refusing/discarding spans (rate limit, oversized trace, unknown error) — traces are being lost. Rewritten 2026-08-25: the original expression (`rate()` of a constant gauge `== 0`) fired permanently on every healthy deployment and would have gone quiet on the actual failure it was written for. | [troubleshooting](../operations/troubleshooting.md) |
 | `GrafanaDown` | critical | `up{job="grafana"} == 0` | 2 m | UI is down — users have no access | [service-down](../operations/runbooks/service-down.md) |
 | `OTelCollectorQueueFull` | warning | `otelcol_exporter_queue_size / capacity > 0.8` | 5 m | Collector exporter queue >80% full — drops imminent | [troubleshooting](../operations/troubleshooting.md) |
 | `ContainerRestartLoop` | critical | `changes(container_start_time_seconds[10m]) > 3` | 0 m | Container has restarted >3× in 10 m | [service-down](../operations/runbooks/service-down.md) |
